@@ -6,6 +6,7 @@ const BusinessProduct = require("./BusinessProduct");
 const Calculation = require("./Calculation");
 const Notification = require("./Notification");
 const RateAlert = require("./RateAlert");
+const SyncLog = require("./SyncLog");
 
 // ── Associations ──────────────────────────────────────────
 GstRate.belongsTo(Category, { foreignKey: "category_id" });
@@ -36,4 +37,5 @@ module.exports = {
     Calculation,
     Notification,
     RateAlert,
+    SyncLog,
 };

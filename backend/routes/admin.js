@@ -303,4 +303,44 @@ async function notifySubscribers(hsn_sac_code, newRate, description, oldRate) {
     }
 }
 
+// ══════════════════════════════════════════════════════════
+//  Rate Sync Management
+// ══════════════════════════════════════════════════════════
+
+const rateSyncService = require("../services/rateSyncService");
+const scheduler = require("../services/scheduler");
+
+// ── Trigger manual sync ───────────────────────────────────
+router.post("/sync/trigger", async (req, res) => {
+    try {
+        const result = await rateSyncService.runSync("manual");
+        res.json({ message: "Sync completed", result });
+    } catch (err) {
+        console.error("Manual sync error:", err);
+        res.status(500).json({ error: "Sync failed: " + err.message });
+    }
+});
+
+// ── Get last sync status ──────────────────────────────────
+router.get("/sync/status", async (req, res) => {
+    try {
+        const status = await rateSyncService.getLastSyncStatus();
+        const schedulerStatus = scheduler.getStatus();
+        res.json({ ...status, scheduler: schedulerStatus });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch sync status" });
+    }
+});
+
+// ── Get sync logs ─────────────────────────────────────────
+router.get("/sync/logs", async (req, res) => {
+    try {
+        const { page = 1, limit = 20 } = req.query;
+        const data = await rateSyncService.getSyncLogs(parseInt(page), parseInt(limit));
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch sync logs" });
+    }
+});
+
 module.exports = router;

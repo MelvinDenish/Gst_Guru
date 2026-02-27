@@ -107,6 +107,10 @@ export const adminAPI = {
     createCategory: (data) => api.post("/admin/categories", data),
     updateCategory: (id, data) => api.put(`/admin/categories/${id}`, data),
     deleteCategory: (id) => api.delete(`/admin/categories/${id}`),
+    // Sync
+    triggerSync: () => api.post("/admin/sync/trigger"),
+    syncStatus: () => api.get("/admin/sync/status"),
+    syncLogs: (params) => api.get("/admin/sync/logs", { params }),
 };
 
 export default api;

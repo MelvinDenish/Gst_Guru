@@ -37,10 +37,15 @@ app.get("/api/health", (_req, res) => {
 });
 
 // ── Start ─────────────────────────────────────────────────
+const scheduler = require("./services/scheduler");
+
 async function start() {
     try {
         await sequelize.sync();
         console.log("Database synced");
+
+        // Start automatic rate sync scheduler
+        scheduler.start();
 
         app.listen(PORT, () => {
             console.log(`GST Calculation System API running on http://localhost:${PORT}`);

@@ -12,6 +12,12 @@ export default function AdminRates() {
     const [toast, setToast] = useState(null);
     const [sHSN, setSHSN] = useState("");
 
+    // Sync state
+    const [syncStatus, setSyncStatus] = useState(null);
+    const [syncing, setSyncing] = useState(false);
+    const [showSyncLogs, setShowSyncLogs] = useState(false);
+    const [syncLogs, setSyncLogs] = useState([]);
+
     const load = async (p = 1) => {
         setLoading(true);
         try {
@@ -21,7 +27,13 @@ export default function AdminRates() {
             setRates(data.rates || []); setPg(data.pagination || { page: 1, totalPages: 1 });
         } catch { } finally { setLoading(false); }
     };
-    useEffect(() => { load(); }, []);
+
+    const loadSyncStatus = async () => {
+        try { const { data } = await adminAPI.syncStatus(); setSyncStatus(data); }
+        catch { }
+    };
+
+    useEffect(() => { load(); loadSyncStatus(); }, []);
 
     const openAdd = () => { setEditing(null); setForm({ hsn_sac_code: "", description: "", rate_percent: "", cess_percent: "0", effective_from: new Date().toISOString().split("T")[0], effective_to: "" }); setShowModal(true); };
     const openEdit = (r) => { setEditing(r); setForm({ hsn_sac_code: r.hsn_sac_code, description: r.description, rate_percent: r.rate_percent, cess_percent: r.cess_percent || "0", effective_from: r.effective_from, effective_to: r.effective_to || "" }); setShowModal(true); };
@@ -44,6 +56,29 @@ export default function AdminRates() {
         e.target.value = "";
     };
 
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            const { data } = await adminAPI.triggerSync();
+            setToast({ message: `Sync complete: ${data.result?.totalUpdated || 0} updated, ${data.result?.totalAdded || 0} added`, type: "success" });
+            load();
+            loadSyncStatus();
+        } catch (err) {
+            setToast({ message: err.response?.data?.error || "Sync failed", type: "error" });
+        } finally { setSyncing(false); }
+    };
+
+    const loadSyncLogs = async () => {
+        try {
+            const { data } = await adminAPI.syncLogs({ page: 1, limit: 10 });
+            setSyncLogs(data.logs || []);
+            setShowSyncLogs(true);
+        } catch { }
+    };
+
+    const formatTime = (d) => d ? new Date(d).toLocaleString("en-IN") : "—";
+    const statusColor = (s) => s === "success" ? "#22c55e" : s === "failed" ? "#ef4444" : s === "partial" ? "#f59e0b" : "#3b82f6";
+
     return (
         <div className="page admin-rates-page">
             <div className="page-header">
@@ -53,6 +88,96 @@ export default function AdminRates() {
                     <button className="btn btn-primary" onClick={openAdd}>+ Add Rate</button>
                 </div>
             </div>
+
+            {/* ═══ Sync Status Widget ═══ */}
+            <div className="sync-widget glass-card">
+                <div className="sync-header">
+                    <div className="sync-info">
+                        <h3>🔄 Auto-Sync Status</h3>
+                        {syncStatus?.scheduler && (
+                            <span className={`sync-badge ${syncStatus.scheduler.enabled ? "enabled" : "disabled"}`}>
+                                {syncStatus.scheduler.enabled ? "Enabled" : "Disabled"} — {syncStatus.scheduler.cronExpression}
+                            </span>
+                        )}
+                    </div>
+                    <div className="sync-actions">
+                        <button className="btn btn-sm btn-secondary" onClick={loadSyncLogs}>📋 Logs</button>
+                        <button className="btn btn-sm btn-primary" onClick={handleSync} disabled={syncing}>
+                            {syncing ? <><span className="spinner"></span> Syncing...</> : "⚡ Sync Now"}
+                        </button>
+                    </div>
+                </div>
+
+                {syncStatus?.lastSync && (
+                    <div className="sync-details">
+                        <div className="sync-detail">
+                            <span className="sync-label">Last Sync</span>
+                            <span>{formatTime(syncStatus.lastSync.started_at)}</span>
+                        </div>
+                        <div className="sync-detail">
+                            <span className="sync-label">Source</span>
+                            <span className="code-badge">{syncStatus.lastSync.source}</span>
+                        </div>
+                        <div className="sync-detail">
+                            <span className="sync-label">Status</span>
+                            <span style={{ color: statusColor(syncStatus.lastSync.status), fontWeight: 600 }}>
+                                {syncStatus.lastSync.status?.toUpperCase()}
+                            </span>
+                        </div>
+                        <div className="sync-detail">
+                            <span className="sync-label">Checked</span>
+                            <span>{syncStatus.lastSync.rates_checked}</span>
+                        </div>
+                        <div className="sync-detail">
+                            <span className="sync-label">Updated</span>
+                            <span style={{ color: syncStatus.lastSync.rates_updated > 0 ? "#22c55e" : "inherit", fontWeight: 600 }}>
+                                {syncStatus.lastSync.rates_updated}
+                            </span>
+                        </div>
+                        <div className="sync-detail">
+                            <span className="sync-label">Added</span>
+                            <span>{syncStatus.lastSync.rates_added}</span>
+                        </div>
+                    </div>
+                )}
+
+                {!syncStatus?.lastSync && (
+                    <p className="sync-empty">No sync has run yet. Click "Sync Now" to fetch latest rates.</p>
+                )}
+            </div>
+
+            {/* Sync Logs Modal */}
+            {showSyncLogs && (
+                <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowSyncLogs(false)}>
+                    <div className="modal glass-card" style={{ maxWidth: "700px" }}>
+                        <h2>📋 Sync History</h2>
+                        {syncLogs.length === 0 ? <p>No sync logs yet.</p> : (
+                            <div className="table-wrapper" style={{ padding: 0 }}>
+                                <table className="data-table">
+                                    <thead><tr><th>Time</th><th>Source</th><th>Status</th><th>Checked</th><th>Updated</th><th>Added</th><th>Errors</th></tr></thead>
+                                    <tbody>
+                                        {syncLogs.map(l => (
+                                            <tr key={l.id}>
+                                                <td>{formatTime(l.started_at)}</td>
+                                                <td><span className="code-badge">{l.source}</span></td>
+                                                <td style={{ color: statusColor(l.status), fontWeight: 600 }}>{l.status}</td>
+                                                <td>{l.rates_checked}</td>
+                                                <td>{l.rates_updated}</td>
+                                                <td>{l.rates_added}</td>
+                                                <td>{l.errors}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        <div className="modal-actions">
+                            <button className="btn btn-secondary" onClick={() => setShowSyncLogs(false)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="admin-search glass-card">
                 <input className="input" placeholder="Search HSN..." value={sHSN} onChange={e => setSHSN(e.target.value)} />
                 <button className="btn btn-primary" onClick={() => load(1)}>Search</button>
