@@ -58,7 +58,14 @@ export const ratesAPI = {
 // ── Calculate ─────────────────────────────────────────────
 export const calculateAPI = {
     compute: (data) => api.post("/calculate", data),
+    bundle: (data) => api.post("/calculate/bundle", data),
+    batch: (data) => api.post("/calculate/batch", data),
     getStates: () => api.get("/calculate/states"),
+};
+
+// ── Invoice ───────────────────────────────────────────────
+export const invoiceAPI = {
+    getUrl: (id) => `${API_BASE}/invoice/${id}`,
 };
 
 // ── Products ──────────────────────────────────────────────

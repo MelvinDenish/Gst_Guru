@@ -10,6 +10,7 @@ import History from "./pages/History";
 import Notifications from "./pages/Notifications";
 import AdminRates from "./pages/AdminRates";
 import AdminCategories from "./pages/AdminCategories";
+import BundleCalculator from "./pages/BundleCalculator";
 import "./index.css";
 
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -29,6 +30,7 @@ function AppRoutes() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/bundle" element={<BundleCalculator />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />

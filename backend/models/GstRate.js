@@ -31,6 +31,21 @@ const GstRate = sequelize.define("GstRate", {
         type: DataTypes.DATEONLY,
         allowNull: true,
     },
+    is_rcm: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
+    price_slabs_json: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        get() {
+            const raw = this.getDataValue("price_slabs_json");
+            return raw ? JSON.parse(raw) : null;
+        },
+        set(val) {
+            this.setDataValue("price_slabs_json", val ? JSON.stringify(val) : null);
+        },
+    },
     applicability_json: {
         type: DataTypes.TEXT, // JSON stored as text in SQLite
         allowNull: true,

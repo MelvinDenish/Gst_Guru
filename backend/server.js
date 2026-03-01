@@ -30,6 +30,7 @@ app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/rate-alerts", require("./routes/rateAlerts"));
 app.use("/api/categories", require("./routes/categories"));
 app.use("/api/admin", require("./routes/admin"));
+app.use("/api/invoice", require("./routes/invoice"));
 
 // ── Health check ──────────────────────────────────────────
 app.get("/api/health", (_req, res) => {

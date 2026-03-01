@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { ratesAPI, calculateAPI } from "../api";
+import { useAuth } from "../contexts/AuthContext";
+import { ratesAPI, calculateAPI, invoiceAPI } from "../api";
 import Toast from "../components/Toast";
 
 const INDIAN_STATES = [
@@ -25,6 +26,7 @@ const INDIAN_STATES = [
 ];
 
 export default function Home() {
+    const { user } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
@@ -39,6 +41,12 @@ export default function Home() {
     const [showDropdown, setShowDropdown] = useState(false);
     const [categoryFilter, setCategoryFilter] = useState("");
     const [slabFilter, setSlabFilter] = useState("");
+
+    // New feature states
+    const [calcMode, setCalcMode] = useState("forward"); // "forward" or "reverse"
+    const [discountPercent, setDiscountPercent] = useState("");
+    const [discountAmount, setDiscountAmount] = useState("");
+    const [selectedVariant, setSelectedVariant] = useState(null);
 
     const debounce = (fn, ms) => {
         let t;
@@ -68,6 +76,23 @@ export default function Home() {
         setSelectedItem(item);
         setSearchQuery(`${item.hsn_sac_code} — ${item.description}`);
         setShowDropdown(false);
+        setSelectedVariant(null);
+        setResult(null);
+    };
+
+    // Determine the display rate considering price slabs
+    const getDisplayRate = () => {
+        if (!selectedItem) return null;
+        const slabs = selectedItem.price_slabs_json;
+        if (slabs && amount) {
+            const price = parseFloat(amount);
+            for (const slab of slabs) {
+                if (slab.max_value === null || price <= slab.max_value) {
+                    return slab.rate;
+                }
+            }
+        }
+        return selectedItem.rate_percent;
     };
 
     const handleCalculate = async () => {
@@ -77,7 +102,7 @@ export default function Home() {
         }
         setLoading(true);
         try {
-            const { data } = await calculateAPI.compute({
+            const payload = {
                 hsn_sac_code: selectedItem.hsn_sac_code,
                 product_description: selectedItem.description,
                 taxable_value: parseFloat(amount),
@@ -85,7 +110,12 @@ export default function Home() {
                 place_of_supply: supplyState,
                 place_of_consumption: consumptionState,
                 transaction_type: txnType,
-            });
+                calculation_mode: calcMode,
+                discount_percent: discountPercent ? parseFloat(discountPercent) : 0,
+                discount_amount: discountAmount ? parseFloat(discountAmount) : 0,
+                selected_variant_index: selectedVariant !== null ? parseInt(selectedVariant) : null,
+            };
+            const { data } = await calculateAPI.compute(payload);
             setResult(data.calculation);
             setToast({ message: "GST calculated successfully!", type: "success" });
         } catch (err) {
@@ -95,7 +125,18 @@ export default function Home() {
         }
     };
 
+    const openInvoice = () => {
+        if (result?.id) {
+            window.open(invoiceAPI.getUrl(result.id), "_blank");
+        }
+    };
+
     const isInterState = supplyState !== consumptionState;
+    const applicability = selectedItem?.applicability_json;
+    const hasVariants = applicability && applicability.type === "automobile" && applicability.variants;
+    const priceSlabs = selectedItem?.price_slabs_json;
+    const isRcmItem = selectedItem?.is_rcm;
+    const displayRate = getDisplayRate();
 
     return (
         <div className="page home-page">
@@ -130,6 +171,29 @@ export default function Home() {
             <section className="calculator-section">
                 <div className="calc-card glass-card">
                     <h2 className="section-title">🧮 GST Calculator</h2>
+
+                    {/* Calculation Mode Toggle */}
+                    <div className="mode-toggle-wrapper">
+                        <div className="mode-toggle">
+                            <button
+                                className={`mode-btn ${calcMode === "forward" ? "active" : ""}`}
+                                onClick={() => { setCalcMode("forward"); setResult(null); }}
+                            >
+                                ➡️ Forward (Base → Total)
+                            </button>
+                            <button
+                                className={`mode-btn ${calcMode === "reverse" ? "active" : ""}`}
+                                onClick={() => { setCalcMode("reverse"); setResult(null); }}
+                            >
+                                ⬅️ Reverse (MRP → Base)
+                            </button>
+                        </div>
+                        <span className="mode-hint">
+                            {calcMode === "forward"
+                                ? "Enter the base price to calculate total with GST"
+                                : "Enter the final MRP to find the base price before GST"}
+                        </span>
+                    </div>
 
                     {/* Search */}
                     <div className="form-group search-group">
@@ -194,25 +258,76 @@ export default function Home() {
                         <div className="selected-item glass-card-inner">
                             <div className="selected-header">
                                 <span className="selected-hsn">{selectedItem.hsn_sac_code}</span>
-                                <span className={`rate-badge slab-badge-${selectedItem.rate_percent}`}>
-                                    GST {selectedItem.rate_percent}%
+                                <span className={`rate-badge slab-badge-${displayRate}`}>
+                                    GST {displayRate}%
                                 </span>
                             </div>
                             <p className="selected-desc">{selectedItem.description}</p>
-                            {selectedItem.Category && (
-                                <span className="category-tag">{selectedItem.Category.name}</span>
-                            )}
+                            <div className="selected-tags">
+                                {selectedItem.Category && (
+                                    <span className="category-tag">{selectedItem.Category.name}</span>
+                                )}
+                                {priceSlabs && (
+                                    <span className="slab-info-tag">📊 Rate varies by price</span>
+                                )}
+                                {hasVariants && (
+                                    <span className="slab-info-tag">🚗 Select vehicle type below</span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* RCM Alert */}
+                    {isRcmItem && (
+                        <div className="rcm-alert">
+                            <span className="rcm-icon">⚠️</span>
+                            <div>
+                                <strong>Reverse Charge Mechanism (RCM) Applies</strong>
+                                <p>Tax on this item is payable by the <em>buyer</em> directly to the government, not by the seller.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Automobile Variant Selector */}
+                    {hasVariants && (
+                        <div className="form-group variant-group">
+                            <label>🚗 Select Vehicle Specification</label>
+                            <select
+                                className="input"
+                                value={selectedVariant ?? ""}
+                                onChange={(e) => { setSelectedVariant(e.target.value === "" ? null : e.target.value); setResult(null); }}
+                            >
+                                <option value="">— Select variant —</option>
+                                {applicability.variants.map((v, i) => (
+                                    <option key={i} value={i}>{v.label} (Cess: {v.cess}%)</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Price Slab Info */}
+                    {priceSlabs && (
+                        <div className="price-slab-info glass-card-inner">
+                            <strong>📊 Price-Based Rate Tiers:</strong>
+                            <div className="slab-tiers">
+                                {priceSlabs.map((s, i) => (
+                                    <span key={i} className={`slab-tier ${displayRate == s.rate ? "active-tier" : ""}`}>
+                                        {s.max_value ? `≤ ₹${s.max_value.toLocaleString("en-IN")}` : `> ₹${priceSlabs[i - 1]?.max_value?.toLocaleString("en-IN") || "0"}`}
+                                        → <strong>{s.rate}%</strong>
+                                    </span>
+                                ))}
+                            </div>
                         </div>
                     )}
 
                     {/* Amount & Details */}
                     <div className="calc-grid">
                         <div className="form-group">
-                            <label>Taxable Amount (₹)</label>
+                            <label>{calcMode === "reverse" ? "Total Amount incl. GST (₹)" : "Taxable Amount (₹)"}</label>
                             <input
                                 type="number"
                                 className="input"
-                                placeholder="10,000"
+                                placeholder={calcMode === "reverse" ? "MRP e.g., 11,800" : "Base e.g., 10,000"}
                                 value={amount}
                                 onChange={(e) => { setAmount(e.target.value); setResult(null); }}
                                 min="0"
@@ -246,6 +361,33 @@ export default function Home() {
                         </div>
                     </div>
 
+                    {/* Discount Fields */}
+                    <div className="discount-row">
+                        <div className="form-group">
+                            <label>Discount (%)</label>
+                            <input
+                                type="number"
+                                className="input"
+                                placeholder="e.g., 10"
+                                value={discountPercent}
+                                onChange={(e) => { setDiscountPercent(e.target.value); setDiscountAmount(""); setResult(null); }}
+                                min="0" max="100" step="0.1"
+                            />
+                        </div>
+                        <span className="or-divider">OR</span>
+                        <div className="form-group">
+                            <label>Discount (₹)</label>
+                            <input
+                                type="number"
+                                className="input"
+                                placeholder="e.g., 500"
+                                value={discountAmount}
+                                onChange={(e) => { setDiscountAmount(e.target.value); setDiscountPercent(""); setResult(null); }}
+                                min="0"
+                            />
+                        </div>
+                    </div>
+
                     <div className="txn-toggle">
                         <label>Transaction Type:</label>
                         <div className="toggle-group">
@@ -269,7 +411,21 @@ export default function Home() {
                 {/* Results */}
                 {result && (
                     <div className="result-card glass-card animate-slide-up">
-                        <h2 className="section-title">📊 Tax Breakdown</h2>
+                        <div className="result-title-row">
+                            <h2 className="section-title">📊 Tax Breakdown</h2>
+                            {result.id && user && (
+                                <button className="btn btn-secondary btn-invoice" onClick={openInvoice}>
+                                    📄 Generate Invoice
+                                </button>
+                            )}
+                        </div>
+
+                        {/* RCM Notice in result */}
+                        {result.rcm_applicable && (
+                            <div className="rcm-result-notice">
+                                ⚠️ <strong>RCM Applied</strong> — Tax shown is ₹0 for the seller. Buyer must self-assess and pay GST of {result.rate_used}% directly.
+                            </div>
+                        )}
 
                         <div className="result-header">
                             <span>{result.hsn_sac_code} — {result.product_description}</span>
@@ -277,8 +433,23 @@ export default function Home() {
                         </div>
 
                         <div className="breakdown-grid">
+                            {/* Reverse mode: show original input and derived base */}
+                            {result.calculation_mode === "reverse" && (
+                                <div className="breakdown-item highlight-reverse">
+                                    <span className="breakdown-label">MRP (Tax-Inclusive Input)</span>
+                                    <span className="breakdown-value">₹{Number(result.original_input).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
+
+                            {result.discount_applied > 0 && (
+                                <div className="breakdown-item highlight-discount">
+                                    <span className="breakdown-label">Discount Applied</span>
+                                    <span className="breakdown-value">- ₹{Number(result.discount_applied).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
+
                             <div className="breakdown-item">
-                                <span className="breakdown-label">Base Amount</span>
+                                <span className="breakdown-label">{result.calculation_mode === "reverse" ? "Derived Base Amount" : "Base Amount"}</span>
                                 <span className="breakdown-value">₹{Number(result.base_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                             </div>
 
@@ -321,6 +492,7 @@ export default function Home() {
                             <span>Supply: {result.supply_state || "—"}</span>
                             <span>Consumption: {result.consumption_state || "—"}</span>
                             <span>Type: {result.transaction_type}</span>
+                            <span>Mode: {result.calculation_mode === "reverse" ? "Reverse (MRP→Base)" : "Forward (Base→Total)"}</span>
                         </div>
                     </div>
                 )}

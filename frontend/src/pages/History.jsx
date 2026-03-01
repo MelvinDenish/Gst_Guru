@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { calculationsAPI } from "../api";
+import { calculationsAPI, invoiceAPI } from "../api";
 import Toast from "../components/Toast";
 
 export default function History() {
@@ -66,6 +66,7 @@ export default function History() {
                                     <th>SGST</th>
                                     <th>IGST</th>
                                     <th>Total</th>
+                                    <th>Invoice</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -81,6 +82,10 @@ export default function History() {
                                         <td>₹{Number(c.sgst).toLocaleString("en-IN")}</td>
                                         <td>₹{Number(c.igst).toLocaleString("en-IN")}</td>
                                         <td className="total-cell">₹{Number(c.total).toLocaleString("en-IN")}</td>
+                                        <td>
+                                            <button className="btn-icon" title="View Invoice"
+                                                onClick={() => window.open(invoiceAPI.getUrl(c.id), '_blank')}>📄</button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
