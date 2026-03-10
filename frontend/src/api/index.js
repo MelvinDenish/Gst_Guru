@@ -63,9 +63,43 @@ export const calculateAPI = {
     getStates: () => api.get("/calculate/states"),
 };
 
-// ── Invoice ───────────────────────────────────────────────
+// ── Invoice (legacy HTML) ─────────────────────────────────
 export const invoiceAPI = {
     getUrl: (id) => `${API_BASE}/invoice/${id}`,
+};
+
+// ── Invoices (new DB-backed tracking) ─────────────────────
+export const invoicesAPI = {
+    list: (params) => api.get("/invoices", { params }),
+    stats: () => api.get("/invoices/stats"),
+    create: (data) => api.post("/invoices", data),
+    update: (id, data) => api.put(`/invoices/${id}`, data),
+    updateStatus: (id, data) => api.patch(`/invoices/${id}/status`, data),
+    delete: (id) => api.delete(`/invoices/${id}`),
+};
+
+// ── Filing Records ────────────────────────────────────────
+export const filingsAPI = {
+    list: (params) => api.get("/filings", { params }),
+    upcoming: () => api.get("/filings/upcoming"),
+    create: (data) => api.post("/filings", data),
+    update: (id, data) => api.put(`/filings/${id}`, data),
+    delete: (id) => api.delete(`/filings/${id}`),
+};
+
+// ── Compliance Reports ────────────────────────────────────
+export const complianceAPI = {
+    list: (params) => api.get("/compliance", { params }),
+    get: (id) => api.get(`/compliance/${id}`),
+    generate: (data) => api.post("/compliance/generate", data),
+    exportCSV: (id) => api.get(`/compliance/export/${id}`, { responseType: "blob" }),
+};
+
+// ── AI Lookup ─────────────────────────────────────────────
+export const aiLookupAPI = {
+    search: (query) => api.post("/ai-lookup", { query }),
+    validateGSTIN: (gstin) => api.post("/ai-lookup/validate-gstin", { gstin }),
+    ewayBill: (data) => api.post("/ai-lookup/eway-bill", data),
 };
 
 // ── Products ──────────────────────────────────────────────

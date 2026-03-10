@@ -7,8 +7,11 @@ const Calculation = require("./Calculation");
 const Notification = require("./Notification");
 const RateAlert = require("./RateAlert");
 const SyncLog = require("./SyncLog");
+const Invoice = require("./Invoice");
+const FilingRecord = require("./FilingRecord");
+const ComplianceReport = require("./ComplianceReport");
 
-// ── Associations ──────────────────────────────────────────
+// ── Existing Associations ─────────────────────────────────
 GstRate.belongsTo(Category, { foreignKey: "category_id" });
 Category.hasMany(GstRate, { foreignKey: "category_id" });
 
@@ -28,6 +31,16 @@ User.hasMany(Notification, { foreignKey: "user_id" });
 RateAlert.belongsTo(User, { foreignKey: "user_id" });
 User.hasMany(RateAlert, { foreignKey: "user_id" });
 
+// ── New Associations ──────────────────────────────────────
+Invoice.belongsTo(User, { foreignKey: "user_id" });
+User.hasMany(Invoice, { foreignKey: "user_id" });
+
+FilingRecord.belongsTo(User, { foreignKey: "user_id" });
+User.hasMany(FilingRecord, { foreignKey: "user_id" });
+
+ComplianceReport.belongsTo(User, { foreignKey: "user_id" });
+User.hasMany(ComplianceReport, { foreignKey: "user_id" });
+
 module.exports = {
     sequelize,
     User,
@@ -38,4 +51,7 @@ module.exports = {
     Notification,
     RateAlert,
     SyncLog,
+    Invoice,
+    FilingRecord,
+    ComplianceReport,
 };

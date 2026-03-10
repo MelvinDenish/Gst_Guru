@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -31,6 +32,10 @@ app.use("/api/rate-alerts", require("./routes/rateAlerts"));
 app.use("/api/categories", require("./routes/categories"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/invoice", require("./routes/invoice"));
+app.use("/api/invoices", require("./routes/invoices"));
+app.use("/api/filings", require("./routes/filings"));
+app.use("/api/compliance", require("./routes/compliance"));
+app.use("/api/ai-lookup", require("./routes/ai-lookup"));
 
 // ── Health check ──────────────────────────────────────────
 app.get("/api/health", (_req, res) => {

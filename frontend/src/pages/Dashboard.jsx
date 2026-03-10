@@ -1,26 +1,34 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { calculationsAPI, productsAPI, notificationsAPI } from "../api";
+import { calculationsAPI, productsAPI, notificationsAPI, invoicesAPI, filingsAPI } from "../api";
 
 export default function Dashboard() {
     const { user } = useAuth();
     const [recentCalcs, setRecentCalcs] = useState([]);
     const [products, setProducts] = useState([]);
     const [unreadNotifs, setUnreadNotifs] = useState(0);
+    const [invoiceStats, setInvoiceStats] = useState(null);
+    const [upcomingFilings, setUpcomingFilings] = useState([]);
+    const [overdueFilings, setOverdueFilings] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const load = async () => {
             try {
-                const [calcsRes, prodsRes, notifsRes] = await Promise.all([
+                const [calcsRes, prodsRes, notifsRes, invStatsRes, filingsRes] = await Promise.all([
                     calculationsAPI.history({ page: 1, limit: 5 }),
                     productsAPI.list(),
                     notificationsAPI.list(),
+                    invoicesAPI.stats().catch(() => ({ data: {} })),
+                    filingsAPI.upcoming().catch(() => ({ data: { upcoming: [], overdue: [] } })),
                 ]);
                 setRecentCalcs(calcsRes.data.calculations || []);
                 setProducts(prodsRes.data.products || []);
                 setUnreadNotifs(notifsRes.data.unreadCount || 0);
+                setInvoiceStats(invStatsRes.data);
+                setUpcomingFilings(filingsRes.data.upcoming || []);
+                setOverdueFilings(filingsRes.data.overdue || []);
             } catch (err) {
                 console.error("Dashboard load error:", err);
             } finally {
@@ -52,6 +60,21 @@ export default function Dashboard() {
                     <span className="stat-label">Products</span>
                 </div>
                 <div className="stat-card glass-card">
+                    <span className="stat-icon">🧾</span>
+                    <span className="stat-value">{invoiceStats?.total || 0}</span>
+                    <span className="stat-label">Total Invoices</span>
+                </div>
+                <div className="stat-card glass-card">
+                    <span className="stat-icon">💰</span>
+                    <span className="stat-value">₹{Number(invoiceStats?.totalOutstanding || 0).toLocaleString("en-IN")}</span>
+                    <span className="stat-label">Outstanding</span>
+                </div>
+                <div className="stat-card glass-card">
+                    <span className="stat-icon">⚠️</span>
+                    <span className="stat-value">{overdueFilings.length}</span>
+                    <span className="stat-label">Overdue Filings</span>
+                </div>
+                <div className="stat-card glass-card">
                     <span className="stat-icon">🔔</span>
                     <span className="stat-value">{unreadNotifs}</span>
                     <span className="stat-label">Unread Notifications</span>
@@ -64,19 +87,68 @@ export default function Dashboard() {
                     <span className="action-icon">⚡</span>
                     <span>New Calculation</span>
                 </Link>
+                <Link to="/gst-lookup" className="action-card glass-card">
+                    <span className="action-icon">🤖</span>
+                    <span>AI GST Lookup</span>
+                </Link>
+                <Link to="/invoices" className="action-card glass-card">
+                    <span className="action-icon">🧾</span>
+                    <span>Create Invoice</span>
+                </Link>
+                <Link to="/filings" className="action-card glass-card">
+                    <span className="action-icon">📋</span>
+                    <span>Filing Records</span>
+                </Link>
+                <Link to="/compliance" className="action-card glass-card">
+                    <span className="action-icon">📊</span>
+                    <span>Compliance</span>
+                </Link>
                 <Link to="/products" className="action-card glass-card">
                     <span className="action-icon">➕</span>
                     <span>Add Product</span>
                 </Link>
-                <Link to="/history" className="action-card glass-card">
-                    <span className="action-icon">📋</span>
-                    <span>View History</span>
-                </Link>
-                <Link to="/notifications" className="action-card glass-card">
-                    <span className="action-icon">🔔</span>
-                    <span>Notifications</span>
-                </Link>
             </div>
+
+            {/* Overdue Filings Alert */}
+            {overdueFilings.length > 0 && (
+                <div className="overdue-alert glass-card">
+                    <h3>⚠️ Overdue Filings</h3>
+                    <div className="overdue-list">
+                        {overdueFilings.map(f => (
+                            <div key={f.id} className="overdue-item">
+                                <span className="code-badge">{f.return_type}</span>
+                                <span>{f.period}</span>
+                                <span className="overdue-date">Due: {f.due_date}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <Link to="/filings" className="link-btn">Manage Filings →</Link>
+                </div>
+            )}
+
+            {/* Upcoming Deadlines */}
+            {upcomingFilings.length > 0 && (
+                <div className="dashboard-section">
+                    <div className="section-header">
+                        <h2>📅 Upcoming Deadlines</h2>
+                        <Link to="/filings" className="link-btn">View All →</Link>
+                    </div>
+                    <div className="upcoming-list glass-card">
+                        {upcomingFilings.slice(0, 3).map(f => {
+                            const days = Math.ceil((new Date(f.due_date) - new Date()) / (1000 * 60 * 60 * 24));
+                            return (
+                                <div key={f.id} className="upcoming-item">
+                                    <span className="code-badge">{f.return_type}</span>
+                                    <span>{f.period}</span>
+                                    <span className={`countdown ${days <= 3 ? "urgent" : days <= 7 ? "warning" : ""}`}>
+                                        {days} day{days !== 1 ? "s" : ""} left
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Recent Calculations */}
             <div className="dashboard-section">

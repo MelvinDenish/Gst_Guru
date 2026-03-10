@@ -27,10 +27,14 @@ export default function Navbar() {
                 <div className={`nav-links ${menuOpen ? "open" : ""}`}>
                     <Link to="/" className="nav-link" onClick={() => setMenuOpen(false)}>Calculator</Link>
                     <Link to="/bundle" className="nav-link" onClick={() => setMenuOpen(false)}>Bundle</Link>
+                    <Link to="/gst-lookup" className="nav-link nav-link-ai" onClick={() => setMenuOpen(false)}>🤖 AI Lookup</Link>
 
                     {user ? (
                         <>
                             <Link to="/dashboard" className="nav-link" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+                            <Link to="/invoices" className="nav-link" onClick={() => setMenuOpen(false)}>Invoices</Link>
+                            <Link to="/filings" className="nav-link" onClick={() => setMenuOpen(false)}>Filings</Link>
+                            <Link to="/compliance" className="nav-link" onClick={() => setMenuOpen(false)}>Compliance</Link>
                             <Link to="/products" className="nav-link" onClick={() => setMenuOpen(false)}>Products</Link>
                             <Link to="/history" className="nav-link" onClick={() => setMenuOpen(false)}>History</Link>
                             <Link to="/notifications" className="nav-link" onClick={() => setMenuOpen(false)}>
