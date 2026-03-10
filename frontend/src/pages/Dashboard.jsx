@@ -103,6 +103,14 @@ export default function Dashboard() {
                     <span className="action-icon">📊</span>
                     <span>Compliance</span>
                 </Link>
+                <Link to="/itc" className="action-card glass-card">
+                    <span className="action-icon">📊</span>
+                    <span>ITC Calculator</span>
+                </Link>
+                <Link to="/hsn-browser" className="action-card glass-card">
+                    <span className="action-icon">📚</span>
+                    <span>HSN Browser</span>
+                </Link>
                 <Link to="/products" className="action-card glass-card">
                     <span className="action-icon">➕</span>
                     <span>Add Product</span>

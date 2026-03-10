@@ -154,4 +154,17 @@ export const adminAPI = {
     syncLogs: (params) => api.get("/admin/sync/logs", { params }),
 };
 
+// ── HSN Browser ───────────────────────────────────────────
+export const hsnBrowserAPI = {
+    categories: () => api.get("/hsn/categories"),
+    browse: (params) => api.get("/hsn/browse", { params }),
+    stats: () => api.get("/hsn/stats"),
+};
+
+// ── ITC Calculator ────────────────────────────────────────
+export const itcAPI = {
+    calculate: (purchases) => api.post("/itc/calculate", { purchases }),
+    aiAdvice: (scenario) => api.post("/itc/ai-advice", { scenario }),
+};
+
 export default api;

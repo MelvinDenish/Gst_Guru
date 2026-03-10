@@ -36,6 +36,8 @@ app.use("/api/invoices", require("./routes/invoices"));
 app.use("/api/filings", require("./routes/filings"));
 app.use("/api/compliance", require("./routes/compliance"));
 app.use("/api/ai-lookup", require("./routes/ai-lookup"));
+app.use("/api/hsn", require("./routes/hsn-browser"));
+app.use("/api/itc", require("./routes/itc"));
 
 // ── Health check ──────────────────────────────────────────
 app.get("/api/health", (_req, res) => {

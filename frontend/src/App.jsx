@@ -15,6 +15,8 @@ import GstLookup from "./pages/GstLookup";
 import InvoiceTracker from "./pages/InvoiceTracker";
 import FilingRecords from "./pages/FilingRecords";
 import ComplianceReports from "./pages/ComplianceReports";
+import HsnBrowser from "./pages/HsnBrowser";
+import ItcCalculator from "./pages/ItcCalculator";
 import "./index.css";
 
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -36,12 +38,14 @@ function AppRoutes() {
           <Route path="/register" element={<Register />} />
           <Route path="/bundle" element={<BundleCalculator />} />
           <Route path="/gst-lookup" element={<GstLookup />} />
+          <Route path="/hsn-browser" element={<HsnBrowser />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
           <Route path="/invoices" element={<ProtectedRoute><InvoiceTracker /></ProtectedRoute>} />
           <Route path="/filings" element={<ProtectedRoute><FilingRecords /></ProtectedRoute>} />
           <Route path="/compliance" element={<ProtectedRoute><ComplianceReports /></ProtectedRoute>} />
+          <Route path="/itc" element={<ProtectedRoute><ItcCalculator /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/admin/rates" element={<ProtectedRoute adminOnly><AdminRates /></ProtectedRoute>} />
           <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminCategories /></ProtectedRoute>} />
