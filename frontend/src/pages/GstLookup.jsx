@@ -8,7 +8,7 @@ export default function GstLookup() {
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState(null);
     const [recentSearches, setRecentSearches] = useState([]);
-    const [activeTab, setActiveTab] = useState("lookup"); // lookup, gstin, eway
+    const [activeTab, setActiveTab] = useState("lookup");
 
     // GSTIN validator state
     const [gstin, setGstin] = useState("");
@@ -23,6 +23,22 @@ export default function GstLookup() {
     });
     const [ewayResult, setEwayResult] = useState(null);
 
+    // Invoice Analyzer state
+    const [invoiceText, setInvoiceText] = useState("");
+    const [invoiceAnalysis, setInvoiceAnalysis] = useState(null);
+    const [analyzing, setAnalyzing] = useState(false);
+
+    // Penalty Calculator state
+    const [penaltyForm, setPenaltyForm] = useState({
+        return_type: "GSTR-3B", due_date: "", filing_date: "", tax_liability: "",
+    });
+    const [penaltyResult, setPenaltyResult] = useState(null);
+
+    // Multi-Compare state
+    const [compareInputs, setCompareInputs] = useState(["", ""]);
+    const [compareResult, setCompareResult] = useState(null);
+    const [comparing, setComparing] = useState(false);
+
     useEffect(() => {
         const saved = localStorage.getItem("gst_recent_searches");
         if (saved) setRecentSearches(JSON.parse(saved));
@@ -35,7 +51,6 @@ export default function GstLookup() {
         try {
             const { data } = await aiLookupAPI.search(query);
             setResult(data);
-            // Save to recent
             const updated = [query, ...recentSearches.filter(s => s !== query)].slice(0, 10);
             setRecentSearches(updated);
             localStorage.setItem("gst_recent_searches", JSON.stringify(updated));
@@ -51,7 +66,7 @@ export default function GstLookup() {
         try {
             const { data } = await aiLookupAPI.validateGSTIN(gstin);
             setGstinResult(data);
-        } catch (err) {
+        } catch {
             setToast({ message: "Validation failed", type: "error" });
         }
     };
@@ -62,7 +77,6 @@ export default function GstLookup() {
             items: [...f.items, { description: "", hsn_code: "", price: "", quantity: "1", gst_rate: "18" }],
         }));
     };
-
     const updateEwayItem = (idx, field, value) => {
         setEwayForm(f => {
             const items = [...f.items];
@@ -70,11 +84,9 @@ export default function GstLookup() {
             return { ...f, items };
         });
     };
-
     const removeEwayItem = (idx) => {
         setEwayForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
     };
-
     const handleGenerateEway = async () => {
         try {
             const { data } = await aiLookupAPI.ewayBill(ewayForm);
@@ -84,67 +96,90 @@ export default function GstLookup() {
         }
     };
 
+    const handleAnalyzeInvoice = async () => {
+        if (!invoiceText.trim()) return;
+        setAnalyzing(true);
+        setInvoiceAnalysis(null);
+        try {
+            const { data } = await aiLookupAPI.analyzeInvoice(invoiceText);
+            if (data.success) setInvoiceAnalysis(data.analysis);
+            else setToast({ message: data.error || "Analysis failed", type: "error" });
+        } catch {
+            setToast({ message: "Invoice analysis failed", type: "error" });
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
+    const handlePenaltyCalc = async () => {
+        if (!penaltyForm.due_date || !penaltyForm.filing_date) return;
+        try {
+            const { data } = await aiLookupAPI.penaltyCalc(penaltyForm);
+            setPenaltyResult(data);
+        } catch {
+            setToast({ message: "Penalty calculation failed", type: "error" });
+        }
+    };
+
+    const handleCompare = async () => {
+        const products = compareInputs.filter(p => p.trim());
+        if (products.length < 2) { setToast({ message: "Enter at least 2 products", type: "error" }); return; }
+        setComparing(true);
+        setCompareResult(null);
+        try {
+            const { data } = await aiLookupAPI.compare(products);
+            if (data.success) setCompareResult(data.comparison);
+            else setToast({ message: data.error || "Comparison failed", type: "error" });
+        } catch {
+            setToast({ message: "Comparison failed", type: "error" });
+        } finally {
+            setComparing(false);
+        }
+    };
+
     return (
         <div className="page gst-lookup-page">
             <div className="page-header">
                 <h1>🤖 <span className="gradient-text">GST Intelligence Hub</span></h1>
-                <p className="subtitle">AI-powered GST lookup, GSTIN validator & E-Way bill generator</p>
+                <p className="subtitle">AI-powered GST tools — lookup, validate, analyze, calculate & compare</p>
             </div>
 
             {/* Tab Navigation */}
-            <div className="lookup-tabs">
-                <button className={`tab-btn ${activeTab === "lookup" ? "active" : ""}`}
-                    onClick={() => setActiveTab("lookup")}>🔍 AI GST Lookup</button>
-                <button className={`tab-btn ${activeTab === "gstin" ? "active" : ""}`}
-                    onClick={() => setActiveTab("gstin")}>✅ GSTIN Validator</button>
-                <button className={`tab-btn ${activeTab === "eway" ? "active" : ""}`}
-                    onClick={() => setActiveTab("eway")}>🚛 E-Way Bill</button>
+            <div className="lookup-tabs" style={{ flexWrap: "wrap" }}>
+                {[
+                    ["lookup", "🔍 AI Lookup"], ["gstin", "✅ GSTIN"], ["eway", "🚛 E-Way"],
+                    ["invoice", "📄 Invoice AI"], ["penalty", "⚖️ Penalty"], ["compare", "📊 Compare"],
+                ].map(([key, label]) => (
+                    <button key={key} className={`tab-btn ${activeTab === key ? "active" : ""}`}
+                        onClick={() => setActiveTab(key)}>{label}</button>
+                ))}
             </div>
 
-            {/* ─── AI GST Lookup Tab ──────────────────────────── */}
+            {/* ─── AI GST Lookup ──────────────────────────────── */}
             {activeTab === "lookup" && (
                 <div className="lookup-section">
                     <div className="lookup-card glass-card">
                         <h2>🧠 AI-Powered GST Rate Finder</h2>
-                        <p className="lookup-hint">Search any product, brand, or service — e.g. "Samsung Galaxy S24", "Nike running shoes", "Paracetamol 500mg"</p>
+                        <p className="lookup-hint">Search any product, brand, or service</p>
                         <div className="lookup-input-row">
-                            <input
-                                type="text"
-                                className="input lookup-input"
+                            <input type="text" className="input lookup-input"
                                 placeholder="Enter product name, brand, or description..."
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                            />
+                                value={query} onChange={e => setQuery(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && handleSearch()} />
                             <button className="btn btn-primary" onClick={handleSearch} disabled={loading || !query.trim()}>
                                 {loading ? <span className="spinner"></span> : "Search"}
                             </button>
                         </div>
-
-                        {/* Recent Searches */}
                         {recentSearches.length > 0 && !result && (
                             <div className="recent-searches">
                                 <span className="recent-label">Recent:</span>
                                 {recentSearches.map((s, i) => (
-                                    <button key={i} className="recent-tag" onClick={() => { setQuery(s); }}>
-                                        {s}
-                                    </button>
+                                    <button key={i} className="recent-tag" onClick={() => setQuery(s)}>{s}</button>
                                 ))}
                             </div>
                         )}
                     </div>
-
-                    {/* Loading Animation */}
-                    {loading && (
-                        <div className="ai-thinking glass-card">
-                            <div className="thinking-dots">
-                                <span></span><span></span><span></span>
-                            </div>
-                            <p>AI is analyzing GST data...</p>
-                        </div>
-                    )}
-
-                    {/* AI Result */}
+                    {loading && <div className="ai-thinking glass-card"><div className="thinking-dots"><span></span><span></span><span></span></div><p>AI is analyzing GST data...</p></div>}
                     {result && !loading && (
                         <div className="lookup-results animate-slide-up">
                             {result.ai_result && (
@@ -156,96 +191,33 @@ export default function GstLookup() {
                                     <div className="ai-result-body">
                                         <div className="result-main-info">
                                             <h3>{result.ai_result.product_name}</h3>
-                                            {result.ai_result.brand && (
-                                                <span className="brand-badge">🏷️ {result.ai_result.brand}</span>
-                                            )}
+                                            {result.ai_result.brand && <span className="brand-badge">🏷️ {result.ai_result.brand}</span>}
                                         </div>
-
                                         <div className="gst-rate-display">
-                                            <div className="rate-big">
-                                                <span className="rate-number">{result.ai_result.gst_rate}%</span>
-                                                <span className="rate-label">GST Rate</span>
-                                            </div>
-                                            {result.ai_result.cess_rate > 0 && (
-                                                <div className="cess-display">
-                                                    <span className="cess-number">+{result.ai_result.cess_rate}%</span>
-                                                    <span className="rate-label">Cess</span>
-                                                </div>
-                                            )}
-                                            <div className="hsn-display">
-                                                <span className="hsn-code">{result.ai_result.hsn_sac_code}</span>
-                                                <span className="rate-label">HSN/SAC</span>
-                                            </div>
+                                            <div className="rate-big"><span className="rate-number">{result.ai_result.gst_rate}%</span><span className="rate-label">GST Rate</span></div>
+                                            {result.ai_result.cess_rate > 0 && <div className="cess-display"><span className="cess-number">+{result.ai_result.cess_rate}%</span><span className="rate-label">Cess</span></div>}
+                                            <div className="hsn-display"><span className="hsn-code">{result.ai_result.hsn_sac_code}</span><span className="rate-label">HSN/SAC</span></div>
                                         </div>
-
                                         <div className="result-details-grid">
-                                            <div className="detail-item">
-                                                <span className="detail-label">Category</span>
-                                                <span className="detail-value">{result.ai_result.category}</span>
-                                            </div>
-                                            <div className="detail-item">
-                                                <span className="detail-label">Effective From</span>
-                                                <span className="detail-value">{result.ai_result.effective_from}</span>
-                                            </div>
-                                            {result.ai_result.rcm_applicable && (
-                                                <div className="detail-item rcm-flag">
-                                                    <span className="detail-label">RCM</span>
-                                                    <span className="detail-value">⚠️ Applicable</span>
-                                                </div>
-                                            )}
+                                            <div className="detail-item"><span className="detail-label">Category</span><span className="detail-value">{result.ai_result.category}</span></div>
+                                            <div className="detail-item"><span className="detail-label">Effective From</span><span className="detail-value">{result.ai_result.effective_from}</span></div>
+                                            {result.ai_result.rcm_applicable && <div className="detail-item rcm-flag"><span className="detail-label">RCM</span><span className="detail-value">⚠️ Applicable</span></div>}
                                         </div>
-
-                                        <div className="result-description">
-                                            <strong>📋 Details:</strong>
-                                            <p>{result.ai_result.description}</p>
-                                        </div>
-
-                                        {result.ai_result.brand_specific_notes && (
-                                            <div className="brand-notes">
-                                                <strong>🏷️ Brand-Specific Notes:</strong>
-                                                <p>{result.ai_result.brand_specific_notes}</p>
-                                            </div>
-                                        )}
-
-                                        {result.ai_result.exemptions && (
-                                            <div className="exemptions-info">
-                                                <strong>🎯 Exemptions/Conditions:</strong>
-                                                <p>{result.ai_result.exemptions}</p>
-                                            </div>
-                                        )}
-
-                                        {result.ai_result.related_items && result.ai_result.related_items.length > 0 && (
-                                            <div className="related-items">
-                                                <strong>🔗 Related Items:</strong>
-                                                <ul>
-                                                    {result.ai_result.related_items.map((item, i) => (
-                                                        <li key={i}>{item}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
+                                        <div className="result-description"><strong>📋 Details:</strong><p>{result.ai_result.description}</p></div>
+                                        {result.ai_result.brand_specific_notes && <div className="brand-notes"><strong>🏷️ Brand Notes:</strong><p>{result.ai_result.brand_specific_notes}</p></div>}
+                                        {result.ai_result.exemptions && <div className="exemptions-info"><strong>🎯 Exemptions:</strong><p>{result.ai_result.exemptions}</p></div>}
+                                        {result.ai_result.related_items?.length > 0 && <div className="related-items"><strong>🔗 Related:</strong><ul>{result.ai_result.related_items.map((it, i) => <li key={i}>{it}</li>)}</ul></div>}
                                     </div>
                                 </div>
                             )}
-
-                            {result.ai_error && (
-                                <div className="ai-error glass-card">
-                                    <p>⚠️ AI lookup unavailable: {result.ai_error}</p>
-                                    <p className="error-hint">Set GROQ_API_KEY in backend .env for AI-powered results</p>
-                                </div>
-                            )}
-
-                            {/* Local DB Matches */}
-                            {result.local_matches && result.local_matches.length > 0 && (
+                            {result.ai_error && <div className="ai-error glass-card"><p>⚠️ AI unavailable: {result.ai_error}</p><p className="error-hint">Set GROQ_API_KEY in backend .env</p></div>}
+                            {result.local_matches?.length > 0 && (
                                 <div className="local-matches glass-card">
                                     <h3>📦 Database Matches</h3>
                                     <div className="matches-grid">
-                                        {result.local_matches.map((m) => (
+                                        {result.local_matches.map(m => (
                                             <div key={m.id} className="match-card">
-                                                <div className="match-hsn">
-                                                    <span className="code-badge">{m.hsn_sac_code}</span>
-                                                    <span className={`slab-badge slab-badge-${m.rate_percent}`}>{m.rate_percent}%</span>
-                                                </div>
+                                                <div className="match-hsn"><span className="code-badge">{m.hsn_sac_code}</span><span className={`slab-badge slab-badge-${m.rate_percent}`}>{m.rate_percent}%</span></div>
                                                 <p className="match-desc">{m.description}</p>
                                                 {m.category && <span className="category-tag">{m.category}</span>}
                                             </div>
@@ -258,58 +230,31 @@ export default function GstLookup() {
                 </div>
             )}
 
-            {/* ─── GSTIN Validator Tab ────────────────────────── */}
+            {/* ─── GSTIN Validator ────────────────────────────── */}
             {activeTab === "gstin" && (
                 <div className="gstin-section">
                     <div className="gstin-card glass-card">
                         <h2>✅ GSTIN Validator</h2>
-                        <p className="lookup-hint">Enter a 15-character GSTIN to validate its format and checksum</p>
+                        <p className="lookup-hint">Enter a 15-character GSTIN to validate format and checksum</p>
                         <div className="lookup-input-row">
-                            <input
-                                type="text"
-                                className="input lookup-input"
-                                placeholder="e.g., 27AADCB2230M1Z3"
-                                value={gstin}
-                                onChange={(e) => setGstin(e.target.value.toUpperCase())}
-                                maxLength={15}
-                                onKeyDown={(e) => e.key === "Enter" && handleValidateGSTIN()}
-                            />
-                            <button className="btn btn-primary" onClick={handleValidateGSTIN} disabled={!gstin.trim()}>
-                                Validate
-                            </button>
+                            <input type="text" className="input lookup-input" placeholder="e.g., 27AADCB2230M1Z3"
+                                value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())}
+                                maxLength={15} onKeyDown={e => e.key === "Enter" && handleValidateGSTIN()} />
+                            <button className="btn btn-primary" onClick={handleValidateGSTIN} disabled={!gstin.trim()}>Validate</button>
                         </div>
-
                         {gstinResult && (
                             <div className={`gstin-result animate-slide-up ${gstinResult.valid ? "valid" : "invalid"}`}>
                                 <div className="gstin-status">
-                                    <span className={`status-icon ${gstinResult.valid ? "success" : "error"}`}>
-                                        {gstinResult.valid ? "✅" : "❌"}
-                                    </span>
-                                    <span className="status-text">
-                                        {gstinResult.valid ? "Valid GSTIN" : "Invalid GSTIN"}
-                                    </span>
+                                    <span className={`status-icon ${gstinResult.valid ? "success" : "error"}`}>{gstinResult.valid ? "✅" : "❌"}</span>
+                                    <span className="status-text">{gstinResult.valid ? "Valid GSTIN" : "Invalid GSTIN"}</span>
                                 </div>
-                                {gstinResult.error && (
-                                    <p className="gstin-error">{gstinResult.error}</p>
-                                )}
+                                {gstinResult.error && <p className="gstin-error">{gstinResult.error}</p>}
                                 {gstinResult.details && (
                                     <div className="gstin-details">
-                                        <div className="detail-item">
-                                            <span className="detail-label">State</span>
-                                            <span className="detail-value">{gstinResult.details.state_name} ({gstinResult.details.state_code})</span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <span className="detail-label">PAN</span>
-                                            <span className="detail-value">{gstinResult.details.pan}</span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <span className="detail-label">Entity Number</span>
-                                            <span className="detail-value">{gstinResult.details.entity_number}</span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <span className="detail-label">Checksum</span>
-                                            <span className="detail-value">{gstinResult.details.checksum_valid ? "✅ Verified" : "❌ Failed"}</span>
-                                        </div>
+                                        <div className="detail-item"><span className="detail-label">State</span><span className="detail-value">{gstinResult.details.state_name} ({gstinResult.details.state_code})</span></div>
+                                        <div className="detail-item"><span className="detail-label">PAN</span><span className="detail-value">{gstinResult.details.pan}</span></div>
+                                        <div className="detail-item"><span className="detail-label">Entity Number</span><span className="detail-value">{gstinResult.details.entity_number}</span></div>
+                                        <div className="detail-item"><span className="detail-label">Checksum</span><span className="detail-value">{gstinResult.details.checksum_valid ? "✅ Verified" : "❌ Failed"}</span></div>
                                     </div>
                                 )}
                             </div>
@@ -318,118 +263,185 @@ export default function GstLookup() {
                 </div>
             )}
 
-            {/* ─── E-Way Bill Tab ──────────────────────────────── */}
+            {/* ─── E-Way Bill ──────────────────────────────────── */}
             {activeTab === "eway" && (
                 <div className="eway-section">
                     <div className="eway-card glass-card">
                         <h2>🚛 E-Way Bill Generator</h2>
                         <p className="lookup-hint">Generate E-Way bill information for goods transportation</p>
-
                         <div className="eway-form">
                             <div className="calc-grid">
-                                <div className="form-group">
-                                    <label>Invoice Number</label>
-                                    <input type="text" className="input" placeholder="INV-001"
-                                        value={ewayForm.invoice_number}
-                                        onChange={e => setEwayForm(f => ({ ...f, invoice_number: e.target.value }))} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Supplier GSTIN</label>
-                                    <input type="text" className="input" placeholder="27AADCB2230M1Z3"
-                                        value={ewayForm.supplier_gstin}
-                                        onChange={e => setEwayForm(f => ({ ...f, supplier_gstin: e.target.value }))} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Recipient GSTIN</label>
-                                    <input type="text" className="input" placeholder="33AADCB2230M1Z3"
-                                        value={ewayForm.recipient_gstin}
-                                        onChange={e => setEwayForm(f => ({ ...f, recipient_gstin: e.target.value }))} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Distance (km)</label>
-                                    <input type="number" className="input" value={ewayForm.distance_km}
-                                        onChange={e => setEwayForm(f => ({ ...f, distance_km: e.target.value }))} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Transport Mode</label>
-                                    <select className="input" value={ewayForm.transport_mode}
-                                        onChange={e => setEwayForm(f => ({ ...f, transport_mode: e.target.value }))}>
-                                        <option>Road</option><option>Rail</option>
-                                        <option>Air</option><option>Ship</option>
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>Vehicle Number</label>
-                                    <input type="text" className="input" placeholder="MH01AB1234"
-                                        value={ewayForm.vehicle_number}
-                                        onChange={e => setEwayForm(f => ({ ...f, vehicle_number: e.target.value }))} />
-                                </div>
+                                <div className="form-group"><label>Invoice Number</label><input type="text" className="input" placeholder="INV-001" value={ewayForm.invoice_number} onChange={e => setEwayForm(f => ({ ...f, invoice_number: e.target.value }))} /></div>
+                                <div className="form-group"><label>Supplier GSTIN</label><input type="text" className="input" placeholder="27AADCB2230M1Z3" value={ewayForm.supplier_gstin} onChange={e => setEwayForm(f => ({ ...f, supplier_gstin: e.target.value }))} /></div>
+                                <div className="form-group"><label>Recipient GSTIN</label><input type="text" className="input" placeholder="33AADCB2230M1Z3" value={ewayForm.recipient_gstin} onChange={e => setEwayForm(f => ({ ...f, recipient_gstin: e.target.value }))} /></div>
+                                <div className="form-group"><label>Distance (km)</label><input type="number" className="input" value={ewayForm.distance_km} onChange={e => setEwayForm(f => ({ ...f, distance_km: e.target.value }))} /></div>
+                                <div className="form-group"><label>Transport Mode</label><select className="input" value={ewayForm.transport_mode} onChange={e => setEwayForm(f => ({ ...f, transport_mode: e.target.value }))}><option>Road</option><option>Rail</option><option>Air</option><option>Ship</option></select></div>
+                                <div className="form-group"><label>Vehicle Number</label><input type="text" className="input" placeholder="MH01AB1234" value={ewayForm.vehicle_number} onChange={e => setEwayForm(f => ({ ...f, vehicle_number: e.target.value }))} /></div>
                             </div>
-
                             <h3 style={{ marginTop: "1.5rem" }}>Items</h3>
                             {ewayForm.items.map((item, idx) => (
                                 <div key={idx} className="eway-item-row">
-                                    <input type="text" className="input" placeholder="Description"
-                                        value={item.description} onChange={e => updateEwayItem(idx, "description", e.target.value)} />
-                                    <input type="text" className="input" placeholder="HSN" style={{ width: "100px" }}
-                                        value={item.hsn_code} onChange={e => updateEwayItem(idx, "hsn_code", e.target.value)} />
-                                    <input type="number" className="input" placeholder="Price" style={{ width: "120px" }}
-                                        value={item.price} onChange={e => updateEwayItem(idx, "price", e.target.value)} />
-                                    <input type="number" className="input" placeholder="Qty" style={{ width: "80px" }}
-                                        value={item.quantity} onChange={e => updateEwayItem(idx, "quantity", e.target.value)} />
-                                    <input type="number" className="input" placeholder="GST%" style={{ width: "80px" }}
-                                        value={item.gst_rate} onChange={e => updateEwayItem(idx, "gst_rate", e.target.value)} />
-                                    {ewayForm.items.length > 1 && (
-                                        <button className="btn-icon delete" onClick={() => removeEwayItem(idx)}>🗑️</button>
-                                    )}
+                                    <input type="text" className="input" placeholder="Description" value={item.description} onChange={e => updateEwayItem(idx, "description", e.target.value)} />
+                                    <input type="text" className="input" placeholder="HSN" style={{ width: "100px" }} value={item.hsn_code} onChange={e => updateEwayItem(idx, "hsn_code", e.target.value)} />
+                                    <input type="number" className="input" placeholder="Price" style={{ width: "120px" }} value={item.price} onChange={e => updateEwayItem(idx, "price", e.target.value)} />
+                                    <input type="number" className="input" placeholder="Qty" style={{ width: "80px" }} value={item.quantity} onChange={e => updateEwayItem(idx, "quantity", e.target.value)} />
+                                    <input type="number" className="input" placeholder="GST%" style={{ width: "80px" }} value={item.gst_rate} onChange={e => updateEwayItem(idx, "gst_rate", e.target.value)} />
+                                    {ewayForm.items.length > 1 && <button className="btn-icon delete" onClick={() => removeEwayItem(idx)}>🗑️</button>}
                                 </div>
                             ))}
                             <button className="btn btn-secondary" onClick={addEwayItem} style={{ marginTop: "0.5rem" }}>+ Add Item</button>
-
-                            <button className="btn btn-primary btn-calculate" onClick={handleGenerateEway}
-                                style={{ marginTop: "1.5rem" }}>Generate E-Way Bill</button>
+                            <button className="btn btn-primary btn-calculate" onClick={handleGenerateEway} style={{ marginTop: "1.5rem" }}>Generate E-Way Bill</button>
                         </div>
-
                         {ewayResult && (
                             <div className="eway-result animate-slide-up">
-                                <div className="eway-result-header">
-                                    <h3>🚛 E-Way Bill Information</h3>
-                                    <span className="code-badge">{ewayResult.reference_number}</span>
-                                </div>
-
-                                <div className={`eway-mandatory ${ewayResult.eway_required ? "required" : "optional"}`}>
-                                    {ewayResult.threshold_note}
-                                </div>
-
+                                <div className="eway-result-header"><h3>🚛 E-Way Bill Information</h3><span className="code-badge">{ewayResult.reference_number}</span></div>
+                                <div className={`eway-mandatory ${ewayResult.eway_required ? "required" : "optional"}`}>{ewayResult.threshold_note}</div>
                                 <div className="result-details-grid">
-                                    <div className="detail-item">
-                                        <span className="detail-label">Supply Type</span>
-                                        <span className="detail-value">{ewayResult.supply_type}</span>
-                                    </div>
-                                    <div className="detail-item">
-                                        <span className="detail-label">Total Value</span>
-                                        <span className="detail-value">₹{Number(ewayResult.total_value).toLocaleString("en-IN")}</span>
-                                    </div>
-                                    <div className="detail-item">
-                                        <span className="detail-label">Total Tax</span>
-                                        <span className="detail-value">₹{Number(ewayResult.total_tax).toLocaleString("en-IN")}</span>
-                                    </div>
-                                    <div className="detail-item">
-                                        <span className="detail-label">Grand Total</span>
-                                        <span className="detail-value total-cell">₹{Number(ewayResult.grand_total).toLocaleString("en-IN")}</span>
-                                    </div>
-                                    <div className="detail-item">
-                                        <span className="detail-label">Distance</span>
-                                        <span className="detail-value">{ewayResult.transport.distance_km} km</span>
-                                    </div>
-                                    <div className="detail-item">
-                                        <span className="detail-label">Validity</span>
-                                        <span className="detail-value">{ewayResult.validity.days} day(s)</span>
-                                    </div>
+                                    <div className="detail-item"><span className="detail-label">Supply Type</span><span className="detail-value">{ewayResult.supply_type}</span></div>
+                                    <div className="detail-item"><span className="detail-label">Total Value</span><span className="detail-value">₹{Number(ewayResult.total_value).toLocaleString("en-IN")}</span></div>
+                                    <div className="detail-item"><span className="detail-label">Total Tax</span><span className="detail-value">₹{Number(ewayResult.total_tax).toLocaleString("en-IN")}</span></div>
+                                    <div className="detail-item"><span className="detail-label">Grand Total</span><span className="detail-value total-cell">₹{Number(ewayResult.grand_total).toLocaleString("en-IN")}</span></div>
+                                    <div className="detail-item"><span className="detail-label">Distance</span><span className="detail-value">{ewayResult.transport.distance_km} km</span></div>
+                                    <div className="detail-item"><span className="detail-label">Validity</span><span className="detail-value">{ewayResult.validity.days} day(s)</span></div>
                                 </div>
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* ─── AI Invoice Analyzer ────────────────────────── */}
+            {activeTab === "invoice" && (
+                <div className="lookup-section">
+                    <div className="lookup-card glass-card">
+                        <h2>📄 AI Invoice Analyzer</h2>
+                        <p className="lookup-hint">Paste invoice text — AI extracts items, HSN codes, tax breakdowns and validates totals</p>
+                        <textarea className="input" rows="8" placeholder={'Paste invoice text here...\nExample:\nInvoice No: INV-2026-001\nSeller: ABC Electronics, GSTIN: 27AADCB2230M1Z3\nBuyer: XYZ Corp\n1. Samsung TV 55" - HSN 8528, Qty 2 x ₹45,000 @ 18%\nSubtotal: ₹90,000 | IGST: ₹16,200 | Total: ₹106,200'}
+                            value={invoiceText} onChange={e => setInvoiceText(e.target.value)}
+                            style={{ minHeight: "160px", fontFamily: "monospace", fontSize: "0.85rem" }} />
+                        <button className="btn btn-primary" onClick={handleAnalyzeInvoice} disabled={analyzing || !invoiceText.trim()} style={{ marginTop: "1rem" }}>
+                            {analyzing ? <span className="spinner"></span> : "🧠 Analyze Invoice"}
+                        </button>
+                    </div>
+                    {analyzing && <div className="ai-thinking glass-card"><div className="thinking-dots"><span></span><span></span><span></span></div><p>AI is extracting invoice details...</p></div>}
+                    {invoiceAnalysis && (
+                        <div className="lookup-results animate-slide-up">
+                            <div className="ai-result-card glass-card">
+                                <div className="ai-result-header"><div className="ai-badge">📄 Extracted Invoice</div><span className="code-badge">{invoiceAnalysis.invoice_number || "N/A"}</span></div>
+                                <div className="result-details-grid">
+                                    <div className="detail-item"><span className="detail-label">Date</span><span className="detail-value">{invoiceAnalysis.invoice_date || "—"}</span></div>
+                                    <div className="detail-item"><span className="detail-label">Seller</span><span className="detail-value">{invoiceAnalysis.seller?.name || "—"}</span></div>
+                                    <div className="detail-item"><span className="detail-label">Seller GSTIN</span><span className="detail-value">{invoiceAnalysis.seller?.gstin || "—"}</span></div>
+                                    <div className="detail-item"><span className="detail-label">Buyer</span><span className="detail-value">{invoiceAnalysis.buyer?.name || "—"}</span></div>
+                                    <div className="detail-item"><span className="detail-label">Supply Type</span><span className="detail-value">{invoiceAnalysis.supply_type || "—"}</span></div>
+                                </div>
+                                {invoiceAnalysis.items?.length > 0 && (
+                                    <div style={{ marginTop: "1rem" }}>
+                                        <h3>Line Items</h3>
+                                        <div className="table-wrapper"><table className="data-table"><thead><tr><th>Description</th><th>HSN</th><th>Qty</th><th>Price</th><th>GST%</th><th>Amount</th></tr></thead>
+                                            <tbody>{invoiceAnalysis.items.map((it, i) => (<tr key={i}><td>{it.description}</td><td><span className="code-badge">{it.hsn_code || "—"}</span></td><td>{it.quantity}</td><td>₹{Number(it.unit_price||0).toLocaleString("en-IN")}</td><td>{it.gst_rate}%</td><td className="total-cell">₹{Number(it.amount||0).toLocaleString("en-IN")}</td></tr>))}</tbody></table></div>
+                                    </div>
+                                )}
+                                <div className="compliance-stats-grid" style={{ marginTop: "1rem" }}>
+                                    <div className="comp-stat"><span className="comp-stat-label">Subtotal</span><span className="comp-stat-value">₹{Number(invoiceAnalysis.subtotal||0).toLocaleString("en-IN")}</span></div>
+                                    <div className="comp-stat"><span className="comp-stat-label">CGST</span><span className="comp-stat-value highlight-cgst">₹{Number(invoiceAnalysis.cgst||0).toLocaleString("en-IN")}</span></div>
+                                    <div className="comp-stat"><span className="comp-stat-label">SGST</span><span className="comp-stat-value highlight-sgst">₹{Number(invoiceAnalysis.sgst||0).toLocaleString("en-IN")}</span></div>
+                                    <div className="comp-stat"><span className="comp-stat-label">IGST</span><span className="comp-stat-value">₹{Number(invoiceAnalysis.igst||0).toLocaleString("en-IN")}</span></div>
+                                    <div className="comp-stat"><span className="comp-stat-label">Total</span><span className="comp-stat-value total-cell">₹{Number(invoiceAnalysis.total||0).toLocaleString("en-IN")}</span></div>
+                                </div>
+                                {invoiceAnalysis.warnings?.length > 0 && (
+                                    <div className="compliance-alerts" style={{ marginTop: "1rem" }}><h3>⚠️ Warnings</h3>
+                                        {invoiceAnalysis.warnings.map((w, i) => <div key={i} className="alert-item alert-warning"><span className="alert-icon">⚠️</span><span>{w}</span></div>)}
+                                    </div>
+                                )}
+                                {invoiceAnalysis.summary && <div className="result-description" style={{ marginTop: "1rem" }}><strong>📋 Summary:</strong><p>{invoiceAnalysis.summary}</p></div>}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ─── Penalty Calculator ─────────────────────────── */}
+            {activeTab === "penalty" && (
+                <div className="lookup-section">
+                    <div className="lookup-card glass-card">
+                        <h2>⚖️ Penalty & Interest Calculator</h2>
+                        <p className="lookup-hint">Calculate late filing penalties under Section 47 and interest under Section 50</p>
+                        <div className="calc-grid">
+                            <div className="form-group"><label>Return Type</label>
+                                <select className="input" value={penaltyForm.return_type} onChange={e => setPenaltyForm(f => ({ ...f, return_type: e.target.value }))}><option>GSTR-1</option><option>GSTR-3B</option><option>GSTR-9</option><option>GSTR-9C</option><option>CMP-08</option></select></div>
+                            <div className="form-group"><label>Due Date</label><input type="date" className="input" value={penaltyForm.due_date} onChange={e => setPenaltyForm(f => ({ ...f, due_date: e.target.value }))} /></div>
+                            <div className="form-group"><label>Actual Filing Date</label><input type="date" className="input" value={penaltyForm.filing_date} onChange={e => setPenaltyForm(f => ({ ...f, filing_date: e.target.value }))} /></div>
+                            <div className="form-group"><label>Tax Liability (₹)</label><input type="number" className="input" placeholder="0" value={penaltyForm.tax_liability} onChange={e => setPenaltyForm(f => ({ ...f, tax_liability: e.target.value }))} /></div>
+                        </div>
+                        <button className="btn btn-primary" onClick={handlePenaltyCalc} disabled={!penaltyForm.due_date || !penaltyForm.filing_date} style={{ marginTop: "1rem" }}>⚖️ Calculate Penalty</button>
+                    </div>
+                    {penaltyResult && (
+                        <div className="lookup-results animate-slide-up">
+                            <div className="ai-result-card glass-card">
+                                <div className="ai-result-header">
+                                    <div className="ai-badge">⚖️ Penalty Breakdown</div>
+                                    <span className={`status-badge ${penaltyResult.days_late === 0 ? "paid" : "overdue"}`}>{penaltyResult.days_late === 0 ? "✅ On Time" : `⚠️ ${penaltyResult.days_late} days late`}</span>
+                                </div>
+                                {penaltyResult.penalties.length > 0 && (
+                                    <div className="table-wrapper" style={{ marginTop: "1rem" }}><table className="data-table"><thead><tr><th>Section</th><th>Description</th><th>Amount</th></tr></thead>
+                                        <tbody>{penaltyResult.penalties.map((p, i) => (<tr key={i}><td><span className="code-badge">{p.section}</span></td><td>{p.description}{p.note && <span className="lookup-hint"> ({p.note})</span>}</td><td className="total-cell">₹{Number(p.amount).toLocaleString("en-IN")}</td></tr>))}</tbody></table></div>
+                                )}
+                                <div className="compliance-stats-grid" style={{ marginTop: "1rem" }}>
+                                    <div className="comp-stat"><span className="comp-stat-label">Tax Liability</span><span className="comp-stat-value">₹{Number(penaltyResult.tax_liability).toLocaleString("en-IN")}</span></div>
+                                    <div className="comp-stat"><span className="comp-stat-label">Total Penalty</span><span className="comp-stat-value" style={{ color: "#ef4444" }}>₹{Number(penaltyResult.total_penalty).toLocaleString("en-IN")}</span></div>
+                                    <div className="comp-stat"><span className="comp-stat-label">Total Payable</span><span className="comp-stat-value total-cell">₹{Number(penaltyResult.total_payable).toLocaleString("en-IN")}</span></div>
+                                </div>
+                                {penaltyResult.tips?.length > 0 && (
+                                    <div className="compliance-alerts" style={{ marginTop: "1rem" }}><h3>💡 Tips</h3>
+                                        {penaltyResult.tips.map((t, i) => <div key={i} className="alert-item alert-info"><span className="alert-icon">💡</span><span>{t}</span></div>)}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ─── Multi-Brand Compare ────────────────────────── */}
+            {activeTab === "compare" && (
+                <div className="lookup-section">
+                    <div className="lookup-card glass-card">
+                        <h2>📊 Multi-Brand GST Compare</h2>
+                        <p className="lookup-hint">Compare GST rates across products and brands side-by-side (powered by AI)</p>
+                        {compareInputs.map((val, i) => (
+                            <div key={i} className="lookup-input-row" style={{ marginBottom: "0.5rem" }}>
+                                <input type="text" className="input lookup-input"
+                                    placeholder={`Product ${i + 1} (e.g., "${i === 0 ? "Samsung TV" : "Sony TV"}")`}
+                                    value={val} onChange={e => { const u = [...compareInputs]; u[i] = e.target.value; setCompareInputs(u); }} />
+                                {compareInputs.length > 2 && <button className="btn-icon delete" onClick={() => setCompareInputs(compareInputs.filter((_, j) => j !== i))}>🗑️</button>}
+                            </div>
+                        ))}
+                        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                            {compareInputs.length < 5 && <button className="btn btn-secondary" onClick={() => setCompareInputs([...compareInputs, ""])}>+ Add Product</button>}
+                            <button className="btn btn-primary" onClick={handleCompare} disabled={comparing || compareInputs.filter(p => p.trim()).length < 2}>
+                                {comparing ? <span className="spinner"></span> : "📊 Compare"}
+                            </button>
+                        </div>
+                    </div>
+                    {comparing && <div className="ai-thinking glass-card"><div className="thinking-dots"><span></span><span></span><span></span></div><p>AI is comparing GST rates...</p></div>}
+                    {compareResult && (
+                        <div className="lookup-results animate-slide-up">
+                            <div className="ai-result-card glass-card">
+                                <div className="ai-result-header"><div className="ai-badge">📊 Comparison</div></div>
+                                {compareResult.comparisons?.length > 0 && (
+                                    <div className="table-wrapper" style={{ marginTop: "1rem" }}><table className="data-table"><thead><tr><th>Product</th><th>Brand</th><th>HSN</th><th>GST</th><th>Cess</th><th>Effective</th><th>Category</th></tr></thead>
+                                        <tbody>{compareResult.comparisons.map((c, i) => (<tr key={i}><td>{c.product}</td><td>{c.brand||"—"}</td><td><span className="code-badge">{c.hsn_code}</span></td><td><span className={`slab-badge slab-badge-${c.gst_rate}`}>{c.gst_rate}%</span></td><td>{c.cess_rate > 0 ? `${c.cess_rate}%` : "—"}</td><td className="total-cell">{c.effective_rate}%</td><td><span className="category-tag">{c.category}</span></td></tr>))}</tbody></table></div>
+                                )}
+                                <div className="result-details-grid" style={{ marginTop: "1rem" }}>
+                                    {compareResult.lowest_rate_product && <div className="detail-item"><span className="detail-label">✅ Lowest</span><span className="detail-value">{compareResult.lowest_rate_product}</span></div>}
+                                    {compareResult.highest_rate_product && <div className="detail-item"><span className="detail-label">⬆️ Highest</span><span className="detail-value">{compareResult.highest_rate_product}</span></div>}
+                                </div>
+                                {compareResult.summary && <div className="result-description" style={{ marginTop: "1rem" }}><strong>📋 Summary:</strong><p>{compareResult.summary}</p></div>}
+                                {compareResult.savings_tip && <div className="brand-notes"><strong>💡 Savings Tip:</strong><p>{compareResult.savings_tip}</p></div>}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

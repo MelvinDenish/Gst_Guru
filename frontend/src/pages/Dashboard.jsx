@@ -111,6 +111,10 @@ export default function Dashboard() {
                     <span className="action-icon">📚</span>
                     <span>HSN Browser</span>
                 </Link>
+                <Link to="/tax-calendar" className="action-card glass-card">
+                    <span className="action-icon">📅</span>
+                    <span>Tax Calendar</span>
+                </Link>
                 <Link to="/products" className="action-card glass-card">
                     <span className="action-icon">➕</span>
                     <span>Add Product</span>

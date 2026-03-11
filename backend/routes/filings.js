@@ -79,6 +79,84 @@ router.get("/upcoming", async (req, res) => {
     }
 });
 
+// ── Tax Calendar ─────────────────────────────────────────
+router.get("/calendar", async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { months = 3 } = req.query;
+        const now = new Date();
+        const events = [];
+
+        // Auto-generate upcoming deadlines for next N months
+        for (let m = 0; m < parseInt(months); m++) {
+            const targetDate = new Date(now.getFullYear(), now.getMonth() + m, 1);
+            const year = targetDate.getFullYear();
+            const month = targetDate.getMonth();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+            for (const [returnType, info] of Object.entries(FILING_DEADLINES)) {
+                if (info.frequency === "monthly") {
+                    const deadline = new Date(year, month, info.day);
+                    if (deadline >= now) {
+                        events.push({
+                            id: `auto-${returnType}-${year}-${month}`,
+                            return_type: returnType,
+                            description: info.description,
+                            due_date: deadline.toISOString().split("T")[0],
+                            period: `${monthNames[month]} ${year}`,
+                            type: "auto",
+                            urgency: (deadline - now) / (1000 * 60 * 60 * 24) <= 3 ? "urgent" :
+                                     (deadline - now) / (1000 * 60 * 60 * 24) <= 7 ? "warning" : "normal",
+                        });
+                    }
+                } else if (info.frequency === "quarterly" && [2, 5, 8, 11].includes(month)) {
+                    const deadline = new Date(year, month, info.day);
+                    if (deadline >= now) {
+                        events.push({
+                            id: `auto-${returnType}-${year}-${month}`,
+                            return_type: returnType,
+                            description: info.description,
+                            due_date: deadline.toISOString().split("T")[0],
+                            period: `Q${Math.floor(month / 3) + 1} ${year}`,
+                            type: "auto",
+                            urgency: (deadline - now) / (1000 * 60 * 60 * 24) <= 3 ? "urgent" :
+                                     (deadline - now) / (1000 * 60 * 60 * 24) <= 7 ? "warning" : "normal",
+                        });
+                    }
+                }
+            }
+        }
+
+        // Merge with user's actual filing records
+        const userFilings = await FilingRecord.findAll({
+            where: { user_id: userId },
+            order: [["due_date", "ASC"]],
+        });
+
+        for (const f of userFilings) {
+            events.push({
+                id: f.id,
+                return_type: f.return_type,
+                description: FILING_DEADLINES[f.return_type]?.description || f.return_type,
+                due_date: f.due_date,
+                period: f.period,
+                status: f.status,
+                type: "user",
+                urgency: f.status === "filed" ? "done" :
+                         new Date(f.due_date) < now ? "overdue" : "normal",
+            });
+        }
+
+        // Sort by date
+        events.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+
+        res.json({ events, deadlineInfo: FILING_DEADLINES });
+    } catch (err) {
+        console.error("Calendar error:", err);
+        res.status(500).json({ error: "Failed to fetch calendar" });
+    }
+});
+
 // ── Create filing record ─────────────────────────────────
 router.post("/", async (req, res) => {
     try {

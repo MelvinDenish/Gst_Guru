@@ -230,4 +230,195 @@ router.post("/eway-bill", (req, res) => {
     }
 });
 
+// ── AI Invoice Analyzer ─────────────────────────────────
+router.post("/analyze-invoice", async (req, res) => {
+    try {
+        const { invoice_text } = req.body;
+        if (!invoice_text || invoice_text.trim().length < 10) {
+            return res.status(400).json({ error: "Please provide invoice text to analyze" });
+        }
+
+        const apiKey = process.env.GROQ_API_KEY || "";
+        if (!apiKey) {
+            return res.json({ success: false, error: "GROQ_API_KEY not configured", fallback: true });
+        }
+
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: `You are an expert invoice analyzer. Extract all details from the given invoice text and return JSON:
+{
+  "invoice_number": "string",
+  "invoice_date": "YYYY-MM-DD or null",
+  "seller": { "name": "string", "gstin": "string or null", "address": "string or null" },
+  "buyer": { "name": "string", "gstin": "string or null", "address": "string or null" },
+  "items": [{ "description": "string", "hsn_code": "string or null", "quantity": number, "unit_price": number, "gst_rate": number, "amount": number }],
+  "subtotal": number, "cgst": number, "sgst": number, "igst": number, "cess": number, "total": number,
+  "supply_type": "intra-state or inter-state",
+  "place_of_supply": "state name or null",
+  "warnings": ["any discrepancies or issues found"],
+  "summary": "brief summary of the invoice"
+}
+If any field cannot be determined, use null or 0 as appropriate.` },
+                    { role: "user", content: `Analyze this invoice:\n\n${invoice_text}` },
+                ],
+                temperature: 0.1, max_tokens: 2048,
+                response_format: { type: "json_object" },
+            }),
+        });
+
+        if (!response.ok) {
+            return res.json({ success: false, error: `AI error: ${response.status}` });
+        }
+
+        const data = await response.json();
+        const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+        res.json({ success: true, analysis: parsed, model: data.model });
+    } catch (err) {
+        console.error("Invoice analyzer error:", err);
+        res.status(500).json({ error: "Analysis failed" });
+    }
+});
+
+// ── AI Penalty & Interest Calculator ────────────────────
+router.post("/penalty-calc", (req, res) => {
+    try {
+        const { return_type, due_date, filing_date, tax_liability } = req.body;
+
+        if (!due_date || !filing_date) {
+            return res.status(400).json({ error: "Due date and filing date required" });
+        }
+
+        const due = new Date(due_date);
+        const filed = new Date(filing_date);
+        const daysLate = Math.max(0, Math.ceil((filed - due) / (1000 * 60 * 60 * 24)));
+        const liability = parseFloat(tax_liability) || 0;
+
+        // Late fee under Section 47 of CGST Act
+        let lateFeePerDay = 0;
+        let maxLateFee = 0;
+
+        if (return_type === "GSTR-3B" || return_type === "GSTR-1") {
+            lateFeePerDay = liability > 0 ? 50 : 20; // ₹50/day (₹25 CGST + ₹25 SGST) if tax due, else ₹20
+            maxLateFee = 5000; // ₹5000 per return (₹2500 CGST + ₹2500 SGST)
+        } else if (return_type === "GSTR-9") {
+            lateFeePerDay = 200; // ₹200/day (₹100 CGST + ₹100 SGST)
+            maxLateFee = liability > 0 ? liability * 0.25 : 15000; // 0.25% of turnover or max ₹based
+        } else {
+            lateFeePerDay = 50;
+            maxLateFee = 5000;
+        }
+
+        const totalLateFee = Math.min(daysLate * lateFeePerDay, maxLateFee);
+
+        // Interest under Section 50 — 18% per annum on tax liability
+        const interestRate = 0.18;
+        const interest = parseFloat(((liability * interestRate * daysLate) / 365).toFixed(2));
+
+        // Penalty scenarios
+        const penalties = [];
+        if (daysLate > 0) {
+            penalties.push({
+                section: "Section 47 - Late Fee",
+                description: `₹${lateFeePerDay}/day for ${daysLate} days (capped at ₹${maxLateFee})`,
+                amount: totalLateFee,
+            });
+        }
+        if (liability > 0 && daysLate > 0) {
+            penalties.push({
+                section: "Section 50 - Interest",
+                description: `18% p.a. on ₹${liability.toLocaleString("en-IN")} for ${daysLate} days`,
+                amount: interest,
+            });
+        }
+        if (daysLate > 90) {
+            penalties.push({
+                section: "Section 122 - General Penalty",
+                description: "Additional penalty may apply for persistent non-compliance (>90 days)",
+                amount: Math.max(10000, liability * 0.10),
+                note: "Subject to officer discretion",
+            });
+        }
+
+        const totalPenalty = penalties.reduce((s, p) => s + p.amount, 0);
+
+        res.json({
+            return_type: return_type || "GSTR-3B",
+            due_date, filing_date,
+            days_late: daysLate,
+            tax_liability: liability,
+            penalties,
+            total_penalty: parseFloat(totalPenalty.toFixed(2)),
+            total_payable: parseFloat((liability + totalPenalty).toFixed(2)),
+            tips: daysLate === 0
+                ? ["✅ Filed on time! No penalties."]
+                : [
+                    "File ASAP to stop daily late fee accumulation",
+                    "Interest is calculated from the day after due date",
+                    "Consider voluntary payment before notice to avoid higher penalties",
+                    daysLate > 30 ? "⚠️ Returns filed >30 days late may attract scrutiny" : null,
+                ].filter(Boolean),
+        });
+    } catch (err) {
+        console.error("Penalty calc error:", err);
+        res.status(500).json({ error: "Calculation failed" });
+    }
+});
+
+// ── Multi-Brand AI Comparison ───────────────────────────
+router.post("/compare", async (req, res) => {
+    try {
+        const { products } = req.body;
+        if (!products || !Array.isArray(products) || products.length < 2) {
+            return res.status(400).json({ error: "At least 2 products required for comparison" });
+        }
+
+        if (products.length > 5) {
+            return res.status(400).json({ error: "Maximum 5 products can be compared at once" });
+        }
+
+        const apiKey = process.env.GROQ_API_KEY || "";
+        if (!apiKey) {
+            return res.json({ success: false, error: "GROQ_API_KEY not configured" });
+        }
+
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: `Compare GST rates for multiple products/brands. Return JSON:
+{
+  "comparisons": [
+    { "product": "name", "brand": "brand or null", "hsn_code": "code", "gst_rate": number, "cess_rate": number, "effective_rate": number, "category": "cat", "notes": "any brand-specific notes" }
+  ],
+  "lowest_rate_product": "product with lowest GST",
+  "highest_rate_product": "product with highest GST",
+  "summary": "comparison summary with key differences",
+  "savings_tip": "tip on how to save on GST if applicable"
+}` },
+                    { role: "user", content: `Compare GST rates for: ${products.join(", ")}` },
+                ],
+                temperature: 0.1, max_tokens: 2048,
+                response_format: { type: "json_object" },
+            }),
+        });
+
+        if (!response.ok) {
+            return res.json({ success: false, error: `AI error: ${response.status}` });
+        }
+
+        const data = await response.json();
+        const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+        res.json({ success: true, comparison: parsed, model: data.model });
+    } catch (err) {
+        console.error("Compare error:", err);
+        res.status(500).json({ error: "Comparison failed" });
+    }
+});
+
 module.exports = router;

@@ -82,6 +82,7 @@ export const invoicesAPI = {
 export const filingsAPI = {
     list: (params) => api.get("/filings", { params }),
     upcoming: () => api.get("/filings/upcoming"),
+    calendar: (params) => api.get("/filings/calendar", { params }),
     create: (data) => api.post("/filings", data),
     update: (id, data) => api.put(`/filings/${id}`, data),
     delete: (id) => api.delete(`/filings/${id}`),
@@ -100,6 +101,9 @@ export const aiLookupAPI = {
     search: (query) => api.post("/ai-lookup", { query }),
     validateGSTIN: (gstin) => api.post("/ai-lookup/validate-gstin", { gstin }),
     ewayBill: (data) => api.post("/ai-lookup/eway-bill", data),
+    analyzeInvoice: (invoice_text) => api.post("/ai-lookup/analyze-invoice", { invoice_text }),
+    penaltyCalc: (data) => api.post("/ai-lookup/penalty-calc", data),
+    compare: (products) => api.post("/ai-lookup/compare", { products }),
 };
 
 // ── Products ──────────────────────────────────────────────

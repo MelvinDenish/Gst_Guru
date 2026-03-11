@@ -2798,3 +2798,149 @@ select.input {
       grid-template-columns: repeat(3, 1fr);
    }
 }
+
+/* ── Tax Calendar ──────────────────────────────────────── */
+.calendar-timeline {
+   display: flex;
+   flex-direction: column;
+   gap: 2rem;
+}
+
+.calendar-month-header {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   padding: 0.75rem 1.25rem;
+   background: var(--gradient-primary);
+   border-radius: var(--radius);
+   color: #fff;
+   margin-bottom: 0.75rem;
+}
+.month-label {
+   font-size: 1.1rem;
+   font-weight: 700;
+}
+.month-count {
+   font-size: 0.85rem;
+   opacity: 0.85;
+}
+
+.calendar-events {
+   display: flex;
+   flex-direction: column;
+   gap: 0.5rem;
+}
+
+.calendar-event {
+   display: flex;
+   align-items: center;
+   gap: 1.25rem;
+   padding: 1rem 1.25rem;
+   transition: var(--transition);
+   border-left: 4px solid transparent;
+}
+.calendar-event:hover {
+   transform: translateX(4px);
+}
+.calendar-event.urgency-urgent {
+   border-left-color: #ef4444;
+}
+.calendar-event.urgency-warning {
+   border-left-color: #f59e0b;
+}
+.calendar-event.urgency-normal {
+   border-left-color: #3b82f6;
+}
+.calendar-event.urgency-overdue {
+   border-left-color: #ef4444;
+   background: rgba(239, 68, 68, 0.05);
+}
+.calendar-event.urgency-done {
+   border-left-color: #10b981;
+   opacity: 0.7;
+}
+
+.event-date-col {
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   min-width: 50px;
+}
+.event-day {
+   font-size: 1.5rem;
+   font-weight: 800;
+   color: var(--text-primary);
+   line-height: 1;
+}
+.event-month {
+   font-size: 0.7rem;
+   color: var(--text-muted);
+   text-transform: uppercase;
+   letter-spacing: 0.05em;
+}
+
+.event-details {
+   flex: 1;
+}
+.event-header-row {
+   display: flex;
+   align-items: center;
+   gap: 0.5rem;
+   flex-wrap: wrap;
+   margin-bottom: 0.25rem;
+}
+.event-desc {
+   font-size: 0.85rem;
+   color: var(--text-secondary);
+   margin: 0;
+}
+.event-period {
+   font-size: 0.75rem;
+   color: var(--text-muted);
+}
+
+.auto-badge {
+   font-size: 0.65rem;
+   padding: 0.15rem 0.4rem;
+   border-radius: 4px;
+   background: rgba(139, 92, 246, 0.15);
+   color: var(--accent-1);
+   font-weight: 600;
+   text-transform: uppercase;
+   letter-spacing: 0.05em;
+}
+
+.event-countdown {
+   text-align: right;
+   min-width: 100px;
+}
+.countdown {
+   font-size: 0.8rem;
+   font-weight: 600;
+}
+.countdown.urgent {
+   color: #ef4444;
+}
+.countdown.warning {
+   color: #f59e0b;
+}
+.countdown.overdue {
+   color: #ef4444;
+}
+.countdown.done {
+   color: #10b981;
+}
+
+@media (max-width: 600px) {
+   .calendar-event {
+      flex-direction: column;
+      align-items: flex-start;
+   }
+   .event-date-col {
+      flex-direction: row;
+      gap: 0.3rem;
+   }
+   .event-countdown {
+      text-align: left;
+   }
+}

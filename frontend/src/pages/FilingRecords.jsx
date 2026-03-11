@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { filingsAPI } from "../api";
+import { getFinancialYears, getCurrentFinancialYear } from "../utils/constants";
 import Toast from "../components/Toast";
 
 const RETURN_TYPES = ["GSTR-1", "GSTR-3B", "GSTR-9", "GSTR-9C", "CMP-08", "GSTR-4"];
@@ -22,7 +23,7 @@ export default function FilingRecords() {
     const [filterType, setFilterType] = useState("");
 
     const [form, setForm] = useState({
-        return_type: "GSTR-3B", period: "", financial_year: "2025-26",
+        return_type: "GSTR-3B", period: "", financial_year: getCurrentFinancialYear(),
         due_date: "", filing_date: "", status: "pending",
         total_liability: "", itc_claimed: "", tax_paid: "",
         late_fee: "", arn_number: "", notes: "",
@@ -232,9 +233,7 @@ export default function FilingRecords() {
                                     <label>Financial Year *</label>
                                     <select className="input" value={form.financial_year}
                                         onChange={e => setForm(f => ({ ...f, financial_year: e.target.value }))}>
-                                        <option value="2024-25">2024-25</option>
-                                        <option value="2025-26">2025-26</option>
-                                        <option value="2026-27">2026-27</option>
+                                        {getFinancialYears().map(fy => <option key={fy} value={fy}>{fy}</option>)}
                                     </select>
                                 </div>
                                 <div className="form-group">

@@ -37,6 +37,7 @@ export default function Navbar() {
                             <Link to="/filings" className="nav-link" onClick={() => setMenuOpen(false)}>Filings</Link>
                             <Link to="/compliance" className="nav-link" onClick={() => setMenuOpen(false)}>Compliance</Link>
                             <Link to="/itc" className="nav-link" onClick={() => setMenuOpen(false)}>ITC Calc</Link>
+                            <Link to="/tax-calendar" className="nav-link" onClick={() => setMenuOpen(false)}>📅 Calendar</Link>
                             <Link to="/products" className="nav-link" onClick={() => setMenuOpen(false)}>Products</Link>
                             <Link to="/history" className="nav-link" onClick={() => setMenuOpen(false)}>History</Link>
                             <Link to="/notifications" className="nav-link" onClick={() => setMenuOpen(false)}>

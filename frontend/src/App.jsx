@@ -17,6 +17,7 @@ import FilingRecords from "./pages/FilingRecords";
 import ComplianceReports from "./pages/ComplianceReports";
 import HsnBrowser from "./pages/HsnBrowser";
 import ItcCalculator from "./pages/ItcCalculator";
+import TaxCalendar from "./pages/TaxCalendar";
 import "./index.css";
 
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -46,6 +47,7 @@ function AppRoutes() {
           <Route path="/filings" element={<ProtectedRoute><FilingRecords /></ProtectedRoute>} />
           <Route path="/compliance" element={<ProtectedRoute><ComplianceReports /></ProtectedRoute>} />
           <Route path="/itc" element={<ProtectedRoute><ItcCalculator /></ProtectedRoute>} />
+          <Route path="/tax-calendar" element={<ProtectedRoute><TaxCalendar /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/admin/rates" element={<ProtectedRoute adminOnly><AdminRates /></ProtectedRoute>} />
           <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminCategories /></ProtectedRoute>} />

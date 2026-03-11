@@ -1,17 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoicesAPI } from "../api";
+import { INDIAN_STATES } from "../utils/constants";
 import Toast from "../components/Toast";
-
-const INDIAN_STATES = [
-    { code: "01", name: "Jammu & Kashmir" }, { code: "02", name: "Himachal Pradesh" },
-    { code: "03", name: "Punjab" }, { code: "04", name: "Chandigarh" },
-    { code: "05", name: "Uttarakhand" }, { code: "06", name: "Haryana" },
-    { code: "07", name: "Delhi" }, { code: "08", name: "Rajasthan" },
-    { code: "09", name: "Uttar Pradesh" }, { code: "10", name: "Bihar" },
-    { code: "27", name: "Maharashtra" }, { code: "29", name: "Karnataka" },
-    { code: "32", name: "Kerala" }, { code: "33", name: "Tamil Nadu" },
-    { code: "36", name: "Telangana" }, { code: "24", name: "Gujarat" },
-];
 
 export default function InvoiceTracker() {
     const [invoices, setInvoices] = useState([]);

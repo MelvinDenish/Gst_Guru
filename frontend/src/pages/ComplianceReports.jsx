@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { complianceAPI } from "../api";
+import { getFinancialYears, getCurrentFinancialYear, getCurrentPeriod } from "../utils/constants";
 import Toast from "../components/Toast";
 
 export default function ComplianceReports() {
@@ -12,8 +13,8 @@ export default function ComplianceReports() {
 
     const [genForm, setGenForm] = useState({
         report_type: "monthly",
-        period: "Mar 2026",
-        financial_year: "2025-26",
+        period: getCurrentPeriod(),
+        financial_year: getCurrentFinancialYear(),
     });
 
     const loadReports = async () => {
@@ -222,9 +223,7 @@ export default function ComplianceReports() {
                                 <label>Financial Year</label>
                                 <select className="input" value={genForm.financial_year}
                                     onChange={e => setGenForm(f => ({ ...f, financial_year: e.target.value }))}>
-                                    <option value="2024-25">2024-25</option>
-                                    <option value="2025-26">2025-26</option>
-                                    <option value="2026-27">2026-27</option>
+                                    {getFinancialYears().map(fy => <option key={fy} value={fy}>{fy}</option>)}
                                 </select>
                             </div>
                             <div className="modal-actions">
