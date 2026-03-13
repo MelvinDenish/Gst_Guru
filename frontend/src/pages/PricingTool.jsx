@@ -40,12 +40,12 @@ export default function PricingTool() {
                 <div className="form-grid">
                     <div className="form-group">
                         <label>Cost Price (₹) *</label>
-                        <input type="number" step="0.01" min="0.01" required placeholder="e.g., 500"
+                        <input type="number" className="input" step="0.01" min="0.01" required placeholder="e.g., 500"
                             value={form.cost_price} onChange={e => update("cost_price", e.target.value)} />
                     </div>
                     <div className="form-group">
                         <label>Desired Margin (%)</label>
-                        <input type="number" step="0.1" min="0" placeholder="20"
+                        <input type="number" className="input" step="0.1" min="0" placeholder="20"
                             value={form.desired_margin_percent} onChange={e => update("desired_margin_percent", e.target.value)} />
                     </div>
                     <div className="form-group">
@@ -57,17 +57,17 @@ export default function PricingTool() {
                                     onClick={() => update("gst_rate", String(r))}>{r}%</button>
                             ))}
                         </div>
-                        <input type="number" step="0.1" min="0" value={form.gst_rate}
+                        <input type="number" className="input" step="0.1" min="0" value={form.gst_rate}
                             onChange={e => update("gst_rate", e.target.value)} />
                     </div>
                     <div className="form-group">
                         <label>Cess Rate (%)</label>
-                        <input type="number" step="0.1" min="0" placeholder="0"
+                        <input type="number" className="input" step="0.1" min="0" placeholder="0"
                             value={form.cess_rate} onChange={e => update("cess_rate", e.target.value)} />
                     </div>
                     <div className="form-group">
                         <label>Quantity</label>
-                        <input type="number" min="1" value={form.quantity}
+                        <input type="number" className="input" min="1" value={form.quantity}
                             onChange={e => update("quantity", e.target.value)} />
                     </div>
                     <div className="form-group">

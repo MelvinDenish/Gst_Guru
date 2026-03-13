@@ -198,11 +198,11 @@ export default function BusinessInsights() {
                     <div className="filter-bar glass-card">
                         <div className="filter-group">
                             <label>From</label>
-                            <input type="date" value={itcFrom} onChange={e => setItcFrom(e.target.value)} />
+                            <input type="date" className="input" value={itcFrom} onChange={e => setItcFrom(e.target.value)} />
                         </div>
                         <div className="filter-group">
                             <label>To</label>
-                            <input type="date" value={itcTo} onChange={e => setItcTo(e.target.value)} />
+                            <input type="date" className="input" value={itcTo} onChange={e => setItcTo(e.target.value)} />
                         </div>
                         <button className="btn btn-primary" onClick={loadITC} disabled={loading}>
                             {loading ? "Loading..." : "Reconcile"}
@@ -310,32 +310,32 @@ export default function BusinessInsights() {
                         <div className="form-grid">
                             <div className="form-group">
                                 <label>HSN/SAC Code (optional)</label>
-                                <input type="text" placeholder="e.g., 6109"
+                                <input type="text" className="input" placeholder="e.g., 6109"
                                     value={rateForm.hsn_sac_code} onChange={e => setRateForm(p => ({ ...p, hsn_sac_code: e.target.value }))} />
                             </div>
                             <div className="form-group">
                                 <label>Old Rate (%)*</label>
-                                <input type="number" step="0.1" required placeholder="e.g., 5"
+                                <input type="number" className="input" step="0.1" required placeholder="e.g., 5"
                                     value={rateForm.old_rate} onChange={e => setRateForm(p => ({ ...p, old_rate: e.target.value }))} />
                             </div>
                             <div className="form-group">
                                 <label>New Rate (%)*</label>
-                                <input type="number" step="0.1" required placeholder="e.g., 12"
+                                <input type="number" className="input" step="0.1" required placeholder="e.g., 12"
                                     value={rateForm.new_rate} onChange={e => setRateForm(p => ({ ...p, new_rate: e.target.value }))} />
                             </div>
                             <div className="form-group">
                                 <label>Unit Price (₹)</label>
-                                <input type="number" step="0.01" placeholder="e.g., 500"
+                                <input type="number" className="input" step="0.01" placeholder="e.g., 500"
                                     value={rateForm.unit_price} onChange={e => setRateForm(p => ({ ...p, unit_price: e.target.value }))} />
                             </div>
                             <div className="form-group">
                                 <label>Monthly Volume (units)</label>
-                                <input type="number" placeholder="e.g., 1000"
+                                <input type="number" className="input" placeholder="e.g., 1000"
                                     value={rateForm.monthly_volume} onChange={e => setRateForm(p => ({ ...p, monthly_volume: e.target.value }))} />
                             </div>
                             <div className="form-group">
                                 <label>Desired Margin (%)</label>
-                                <input type="number" step="0.1" placeholder="20"
+                                <input type="number" className="input" step="0.1" placeholder="20"
                                     value={rateForm.desired_margin_percent} onChange={e => setRateForm(p => ({ ...p, desired_margin_percent: e.target.value }))} />
                             </div>
                         </div>
@@ -414,7 +414,7 @@ export default function BusinessInsights() {
                     <div className="filter-bar glass-card">
                         <div className="filter-group">
                             <label>Financial Year</label>
-                            <select value={financialYear} onChange={e => setFinancialYear(e.target.value)}>
+                            <select className="input" value={financialYear} onChange={e => setFinancialYear(e.target.value)}>
                                 {[...Array(5)].map((_, i) => {
                                     const y = new Date().getFullYear() - i;
                                     const fy = `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
