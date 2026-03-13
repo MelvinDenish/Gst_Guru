@@ -365,6 +365,113 @@ router.post("/batch", optionalAuth, async (req, res) => {
     }
 });
 
+// ── GST Impact on Pricing Tool ───────────────────────────
+router.post("/pricing", (req, res) => {
+    try {
+        const {
+            cost_price,
+            desired_margin_percent = 20,
+            gst_rate = 18,
+            cess_rate = 0,
+            is_interstate = false,
+            quantity = 1,
+        } = req.body;
+
+        if (!cost_price || cost_price <= 0) {
+            return res.status(400).json({ error: "Valid cost_price is required" });
+        }
+
+        const cost = parseFloat(cost_price);
+        const margin = parseFloat(desired_margin_percent);
+        const gst = parseFloat(gst_rate);
+        const cess = parseFloat(cess_rate);
+        const qty = parseInt(quantity) || 1;
+
+        // Base selling price (excl. GST) with desired margin
+        const sellingPriceExclGST = cost * (1 + margin / 100);
+
+        // Tax calculation
+        const totalTaxRate = gst + cess;
+        const taxPerUnit = (sellingPriceExclGST * totalTaxRate) / 100;
+
+        // MRP (incl. GST)
+        const mrp = sellingPriceExclGST + taxPerUnit;
+
+        // Profit calculation
+        const profitPerUnit = sellingPriceExclGST - cost;
+        const profitMarginActual = (profitPerUnit / sellingPriceExclGST) * 100;
+
+        // Tax split
+        let cgst = 0, sgst = 0, igst = 0;
+        if (is_interstate) {
+            igst = (sellingPriceExclGST * gst) / 100;
+        } else {
+            cgst = (sellingPriceExclGST * (gst / 2)) / 100;
+            sgst = (sellingPriceExclGST * (gst / 2)) / 100;
+        }
+        const cessAmount = (sellingPriceExclGST * cess) / 100;
+
+        // Different margin scenarios
+        const scenarios = [10, 15, 20, 25, 30, 40].map(m => {
+            const sp = cost * (1 + m / 100);
+            const tax = (sp * totalTaxRate) / 100;
+            return {
+                margin_percent: m,
+                selling_price: parseFloat(sp.toFixed(2)),
+                mrp: parseFloat((sp + tax).toFixed(2)),
+                profit_per_unit: parseFloat((sp - cost).toFixed(2)),
+                tax_per_unit: parseFloat(tax.toFixed(2)),
+            };
+        });
+
+        // Reverse: if user wants a specific MRP, what should cost be?
+        const targetMRPs = [499, 999, 1499, 1999, 2999, 4999].map(targetMRP => {
+            const baseFromMRP = targetMRP / (1 + totalTaxRate / 100);
+            const maxCost = baseFromMRP / (1 + margin / 100);
+            return {
+                target_mrp: targetMRP,
+                base_price: parseFloat(baseFromMRP.toFixed(2)),
+                max_cost_for_margin: parseFloat(maxCost.toFixed(2)),
+                profit_at_margin: parseFloat((baseFromMRP - maxCost).toFixed(2)),
+            };
+        });
+
+        res.json({
+            input: { cost_price: cost, desired_margin_percent: margin, gst_rate: gst, cess_rate: cess },
+            pricing: {
+                cost_price: cost,
+                selling_price_excl_gst: parseFloat(sellingPriceExclGST.toFixed(2)),
+                mrp_incl_gst: parseFloat(mrp.toFixed(2)),
+                profit_per_unit: parseFloat(profitPerUnit.toFixed(2)),
+                profit_margin_actual: parseFloat(profitMarginActual.toFixed(2)),
+            },
+            tax_breakdown: {
+                gst_rate: gst,
+                cess_rate: cess,
+                total_tax_rate: totalTaxRate,
+                cgst: parseFloat(cgst.toFixed(2)),
+                sgst: parseFloat(sgst.toFixed(2)),
+                igst: parseFloat(igst.toFixed(2)),
+                cess: parseFloat(cessAmount.toFixed(2)),
+                tax_per_unit: parseFloat(taxPerUnit.toFixed(2)),
+                is_interstate,
+            },
+            bulk: {
+                quantity: qty,
+                total_selling: parseFloat((sellingPriceExclGST * qty).toFixed(2)),
+                total_tax: parseFloat((taxPerUnit * qty).toFixed(2)),
+                total_mrp: parseFloat((mrp * qty).toFixed(2)),
+                total_profit: parseFloat((profitPerUnit * qty).toFixed(2)),
+            },
+            margin_scenarios: scenarios,
+            mrp_targets: targetMRPs,
+        });
+    } catch (err) {
+        console.error("Pricing tool error:", err);
+        res.status(500).json({ error: "Pricing calculation failed" });
+    }
+});
+
 // ── Get Indian states list ───────────────────────────────
 router.get("/states", (_req, res) => {
     const states = Object.entries(INDIAN_STATES).map(([code, name]) => ({

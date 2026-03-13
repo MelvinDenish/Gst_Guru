@@ -1,14 +1,4 @@
-/**
- * Third-Party GST API Client
- * 
- * Adapter-pattern client that supports multiple GST API providers.
- * Configure via environment variables:
- *   GST_API_PROVIDER = "fastgst" | "mastersindia" | "cleartax"
- *   GST_API_KEY = your API key
- *   GST_API_BASE_URL = custom base URL (optional)
- * 
- * If no API key is configured, methods return empty results gracefully.
- */
+
 
 const GST_API_PROVIDER = process.env.GST_API_PROVIDER || "fastgst";
 const GST_API_KEY = process.env.GST_API_KEY || "";

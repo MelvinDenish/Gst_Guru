@@ -1,7 +1,7 @@
 const express = require("express");
 const { Op } = require("sequelize");
 const { GstRate, Category } = require("../models");
-const { lookupGST } = require("../services/aiGstLookup");
+const { lookupGST, getApiKey } = require("../services/aiGstLookup");
 
 const router = express.Router();
 
@@ -238,7 +238,7 @@ router.post("/analyze-invoice", async (req, res) => {
             return res.status(400).json({ error: "Please provide invoice text to analyze" });
         }
 
-        const apiKey = process.env.GROQ_API_KEY || "";
+        const apiKey = getApiKey();
         if (!apiKey) {
             return res.json({ success: false, error: "GROQ_API_KEY not configured", fallback: true });
         }
@@ -380,7 +380,7 @@ router.post("/compare", async (req, res) => {
             return res.status(400).json({ error: "Maximum 5 products can be compared at once" });
         }
 
-        const apiKey = process.env.GROQ_API_KEY || "";
+        const apiKey = getApiKey();
         if (!apiKey) {
             return res.json({ success: false, error: "GROQ_API_KEY not configured" });
         }

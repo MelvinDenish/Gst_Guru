@@ -38,6 +38,10 @@ app.use("/api/compliance", require("./routes/compliance"));
 app.use("/api/ai-lookup", require("./routes/ai-lookup"));
 app.use("/api/hsn", require("./routes/hsn-browser"));
 app.use("/api/itc", require("./routes/itc"));
+app.use("/api/insights", require("./routes/insights"));
+app.use("/api/expenses", require("./routes/expenses"));
+app.use("/api/parties", require("./routes/parties"));
+app.use("/api/gst-returns", require("./routes/gst-returns"));
 
 // ── Health check ──────────────────────────────────────────
 app.get("/api/health", (_req, res) => {

@@ -106,7 +106,7 @@ router.get("/calendar", async (req, res) => {
                             period: `${monthNames[month]} ${year}`,
                             type: "auto",
                             urgency: (deadline - now) / (1000 * 60 * 60 * 24) <= 3 ? "urgent" :
-                                     (deadline - now) / (1000 * 60 * 60 * 24) <= 7 ? "warning" : "normal",
+                                (deadline - now) / (1000 * 60 * 60 * 24) <= 7 ? "warning" : "normal",
                         });
                     }
                 } else if (info.frequency === "quarterly" && [2, 5, 8, 11].includes(month)) {
@@ -120,7 +120,7 @@ router.get("/calendar", async (req, res) => {
                             period: `Q${Math.floor(month / 3) + 1} ${year}`,
                             type: "auto",
                             urgency: (deadline - now) / (1000 * 60 * 60 * 24) <= 3 ? "urgent" :
-                                     (deadline - now) / (1000 * 60 * 60 * 24) <= 7 ? "warning" : "normal",
+                                (deadline - now) / (1000 * 60 * 60 * 24) <= 7 ? "warning" : "normal",
                         });
                     }
                 }
@@ -143,7 +143,7 @@ router.get("/calendar", async (req, res) => {
                 status: f.status,
                 type: "user",
                 urgency: f.status === "filed" ? "done" :
-                         new Date(f.due_date) < now ? "overdue" : "normal",
+                    new Date(f.due_date) < now ? "overdue" : "normal",
             });
         }
 
@@ -154,6 +154,144 @@ router.get("/calendar", async (req, res) => {
     } catch (err) {
         console.error("Calendar error:", err);
         res.status(500).json({ error: "Failed to fetch calendar" });
+    }
+});
+
+// ── Smart Filing Reminders with Penalty Estimates ────────
+router.get("/smart-reminders", async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const today = new Date();
+        const todayStr = today.toISOString().split("T")[0];
+
+        // Get pending/draft filings
+        const pendingFilings = await FilingRecord.findAll({
+            where: {
+                user_id: userId,
+                status: { [Op.in]: ["pending", "draft"] },
+            },
+            order: [["due_date", "ASC"]],
+        });
+
+        // Estimate tax liability from recent invoices (last 3 months)
+        const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 3, 1)
+            .toISOString().split("T")[0];
+
+        const { Invoice } = require("../models");
+        const recentSales = await Invoice.findAll({
+            where: {
+                user_id: userId,
+                invoice_type: "sale",
+                invoice_date: { [Op.gte]: threeMonthsAgo },
+            },
+        });
+        const recentPurchases = await Invoice.findAll({
+            where: {
+                user_id: userId,
+                invoice_type: "purchase",
+                invoice_date: { [Op.gte]: threeMonthsAgo },
+            },
+        });
+
+        // Monthly average tax liability
+        const totalOutputTax = recentSales.reduce((s, i) =>
+            s + (parseFloat(i.cgst) || 0) + (parseFloat(i.sgst) || 0) +
+            (parseFloat(i.igst) || 0) + (parseFloat(i.cess) || 0), 0);
+        const totalInputTax = recentPurchases.reduce((s, i) =>
+            s + (parseFloat(i.cgst) || 0) + (parseFloat(i.sgst) || 0) +
+            (parseFloat(i.igst) || 0) + (parseFloat(i.cess) || 0), 0);
+        const monthsWithData = Math.max(1, 3);
+        const avgMonthlyLiability = Math.max(0, (totalOutputTax - totalInputTax) / monthsWithData);
+
+        const reminders = pendingFilings.map(f => {
+            const dueDate = new Date(f.due_date);
+            const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            const isOverdue = daysUntilDue < 0;
+            const daysLate = isOverdue ? Math.abs(daysUntilDue) : 0;
+
+            // Estimate penalty if missed/overdue
+            const estimatedLiability = f.total_liability > 0
+                ? parseFloat(f.total_liability)
+                : avgMonthlyLiability;
+
+            let lateFeePerDay = estimatedLiability > 0 ? 50 : 20;
+            let maxLateFee = 5000;
+            if (f.return_type === "GSTR-9") {
+                lateFeePerDay = 200;
+                maxLateFee = 15000;
+            }
+
+            const estimatedLateFee = isOverdue
+                ? Math.min(daysLate * lateFeePerDay, maxLateFee)
+                : Math.min(1 * lateFeePerDay, maxLateFee); // 1 day late estimate
+
+            const interestRate = 0.18;
+            const estimatedInterest = isOverdue && estimatedLiability > 0
+                ? parseFloat(((estimatedLiability * interestRate * daysLate) / 365).toFixed(2))
+                : 0;
+
+            // Urgency level
+            let urgency;
+            if (isOverdue) urgency = "overdue";
+            else if (daysUntilDue <= 2) urgency = "critical";
+            else if (daysUntilDue <= 5) urgency = "urgent";
+            else if (daysUntilDue <= 10) urgency = "warning";
+            else urgency = "normal";
+
+            // Actionable message
+            let actionMessage;
+            if (isOverdue) {
+                actionMessage = `⛔ OVERDUE by ${daysLate} days! Current penalty: ₹${(estimatedLateFee + estimatedInterest).toLocaleString("en-IN")}. File immediately to stop penalty accumulation.`;
+            } else if (daysUntilDue <= 2) {
+                actionMessage = `🔴 Due in ${daysUntilDue} day(s)! Estimated liability: ₹${estimatedLiability.toLocaleString("en-IN")}. Missing deadline will cost ₹${lateFeePerDay}/day.`;
+            } else if (daysUntilDue <= 5) {
+                actionMessage = `🟠 Due in ${daysUntilDue} days. Prepare your filing now. Estimated liability: ₹${estimatedLiability.toLocaleString("en-IN")}.`;
+            } else {
+                actionMessage = `🟢 Due in ${daysUntilDue} days. Estimated liability: ₹${estimatedLiability.toLocaleString("en-IN")}.`;
+            }
+
+            return {
+                id: f.id,
+                return_type: f.return_type,
+                period: f.period,
+                due_date: f.due_date,
+                days_until_due: daysUntilDue,
+                is_overdue: isOverdue,
+                days_late: daysLate,
+                urgency,
+                estimated_liability: parseFloat(estimatedLiability.toFixed(2)),
+                penalty_estimate: {
+                    late_fee: parseFloat(estimatedLateFee.toFixed(2)),
+                    interest: estimatedInterest,
+                    total: parseFloat((estimatedLateFee + estimatedInterest).toFixed(2)),
+                    late_fee_per_day: lateFeePerDay,
+                },
+                action_message: actionMessage,
+                description: FILING_DEADLINES[f.return_type]?.description || f.return_type,
+            };
+        });
+
+        // Sort: overdue first, then by urgency
+        const urgencyOrder = { overdue: 0, critical: 1, urgent: 2, warning: 3, normal: 4 };
+        reminders.sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency]);
+
+        const overdueCount = reminders.filter(r => r.is_overdue).length;
+        const criticalCount = reminders.filter(r => r.urgency === "critical").length;
+        const totalPenaltyAtRisk = reminders.reduce((s, r) => s + r.penalty_estimate.total, 0);
+
+        res.json({
+            reminders,
+            summary: {
+                total: reminders.length,
+                overdue: overdueCount,
+                critical: criticalCount,
+                total_penalty_at_risk: parseFloat(totalPenaltyAtRisk.toFixed(2)),
+                avg_monthly_liability: parseFloat(avgMonthlyLiability.toFixed(2)),
+            },
+        });
+    } catch (err) {
+        console.error("Smart reminders error:", err);
+        res.status(500).json({ error: "Failed to generate reminders" });
     }
 });
 

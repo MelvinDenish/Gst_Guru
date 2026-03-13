@@ -1,127 +1,144 @@
-const bcrypt = require("bcryptjs");
-const { sequelize, User, Category, GstRate } = require("./models");
-const path = require("path");
-const fs = require("fs");
-
-// Ensure data directory exists
-const dataDir = path.join(__dirname, "data");
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
-// ── Import modular data ───────────────────────────────────
-const { CATEGORIES, SUB_CATEGORIES } = require("./data/categories");
-const gstFoodAgri = require("./data/gst_food_agri");
-const gstTextileElecHealth = require("./data/gst_textile_elec_health");
-const gstAutoLuxury = require("./data/gst_auto_luxury");
-const gstServicesConstEdu = require("./data/gst_services_construction_edu");
-const gstAdditional = require("./data/gst_additional");
-
-// Merge all GST items
-const GST_ITEMS = [
-    ...gstFoodAgri,
-    ...gstTextileElecHealth,
-    ...gstAutoLuxury,
-    ...gstServicesConstEdu,
-    ...gstAdditional,
-];
+const { sequelize, User, Invoice, Expense, Party, GstReturn } = require("./models");
+const bcrypt = require("bcryptjs"); // Note: password_hash uses bcrypt. We'll use a simple password for testing.
 
 async function seed() {
-    try {
-        console.log("Syncing database...");
-        await sequelize.sync({ force: true });
+    await sequelize.sync({ force: true }); // Reset DB for clean mock data
 
-        // ── Create main categories ───────────────────────────
-        console.log("Creating categories...");
-        const categoryMap = {};
-        for (const cat of CATEGORIES) {
-            const created = await Category.create(cat);
-            categoryMap[cat.name] = created.id;
+    console.log("Database reset. Seeding 4 personas...");
+
+    const password_hash = await bcrypt.hash("password123", 10);
+
+    // Persona 1: Small Retail Shop Owner (B2C heavy, minimal ITC)
+    const user1 = await User.create({
+        name: "Rahul Sharma (Retail Shop)",
+        email: "retail@example.com",
+        password_hash,
+        role: "user"
+    });
+
+    // Persona 2: Freelance Software Dev (B2B, Export, Reverse Charge)
+    const user2 = await User.create({
+        name: "Sneha Patel (Freelance Dev)",
+        email: "freelance@example.com",
+        password_hash,
+        role: "user"
+    });
+
+    // Persona 3: Manufacturer (High ITC, Complex Rates, E-Way bills)
+    const user3 = await User.create({
+        name: "Amit Singh (Manufacturing)",
+        email: "manufacturer@example.com",
+        password_hash,
+        role: "user"
+    });
+
+    // Persona 4: Restaurant Owner (Composition Scheme / Mixed Rates)
+    const user4 = await User.create({
+        name: "Karan Johar (Restaurant)",
+        email: "restaurant@example.com",
+        password_hash,
+        role: "user"
+    });
+
+    console.log("Created 4 users.");
+
+    // --- SEED USER 1 (Retail) ---
+    await Party.bulkCreate([
+        { user_id: user1.id, name: "Local Wholesaler", type: "vendor", gstin: "27AAAAA0000A1Z5", phone: "9876543210" },
+        { user_id: user1.id, name: "Walk-in Customer", type: "customer", phone: "" } // B2C
+    ]);
+
+    await Invoice.bulkCreate([
+        {
+            user_id: user1.id, invoice_number: "INV-R-001", invoice_type: "sale", buyer_name: "Walk-in Customer",
+            invoice_date: "2026-03-01", subtotal: 500, cgst: 22.5, sgst: 22.5, igst: 0, cess: 0, total: 545,
+            payment_status: "paid", items_json: [{ description: "Groceries", quantity: 1, price: 500, gst_rate: 9 }]
+        },
+        {
+            user_id: user1.id, invoice_number: "INV-R-002", invoice_type: "sale", buyer_name: "Ramesh (B2C)",
+            invoice_date: "2026-03-05", subtotal: 1200, cgst: 72, sgst: 72, igst: 0, cess: 0, total: 1344,
+            payment_status: "paid", items_json: [{ description: "Household Items", quantity: 1, price: 1200, gst_rate: 12 }]
         }
-        console.log(`  ✓ Created ${CATEGORIES.length} main categories`);
+    ]);
 
-        // ── Create sub-categories using parent_id ────────────
-        let subCatCount = 0;
-        for (const [parentName, children] of Object.entries(SUB_CATEGORIES)) {
-            const parentId = categoryMap[parentName];
-            if (!parentId) {
-                console.warn(`  ⚠ Parent category "${parentName}" not found, skipping sub-categories`);
-                continue;
-            }
-            for (const sub of children) {
-                const created = await Category.create({
-                    ...sub,
-                    parent_id: parentId,
-                });
-                // Also register in categoryMap for potential use
-                categoryMap[sub.name] = created.id;
-                subCatCount++;
-            }
+    await Expense.bulkCreate([
+        { user_id: user1.id, vendor_name: "Local Wholesaler", category: "Inventory", amount: 10000, gst_paid: 1800, date: "2026-03-02", eligible_itc: true },
+        { user_id: user1.id, vendor_name: "Electricity Board", category: "Utilities", amount: 2000, gst_paid: 0, date: "2026-03-10", eligible_itc: false }
+    ]);
+
+
+    // --- SEED USER 2 (Freelance) ---
+    await Party.bulkCreate([
+        { user_id: user2.id, name: "US Tech Corp", type: "customer", address: "New York, USA", email: "payment@ustech.com" },
+        { user_id: user2.id, name: "Co-working Space", type: "vendor", gstin: "29BBBBB1111B2Z6" }
+    ]);
+
+    await Invoice.bulkCreate([
+        {
+            user_id: user2.id, invoice_number: "INV-F-101", invoice_type: "sale", buyer_name: "US Tech Corp",
+            invoice_date: "2026-03-15", subtotal: 150000, cgst: 0, sgst: 0, igst: 0, cess: 0, total: 150000, // Export (LUT)
+            payment_status: "partial", items_json: [{ description: "Software Development Services", quantity: 1, price: 150000, gst_rate: 0 }],
+            notes: "Export of services without payment of IGST under LUT"
         }
-        console.log(`  ✓ Created ${subCatCount} sub-categories`);
+    ]);
 
-        // ── Create default admin user ────────────────────────
-        console.log("Creating users...");
-        const adminHash = await bcrypt.hash("admin123", 12);
-        await User.create({
-            email: "admin@gstguru.in",
-            password_hash: adminHash,
-            name: "System Administrator",
-            role: "admin",
-            business_name: "GST Guru",
-        });
+    await Expense.bulkCreate([
+        { user_id: user2.id, vendor_name: "Co-working Space", category: "Rent", amount: 8000, gst_paid: 1440, date: "2026-03-01", eligible_itc: true },
+        { user_id: user2.id, vendor_name: "AWS Cloud", category: "Software", amount: 5000, gst_paid: 900, date: "2026-03-05", eligible_itc: true }
+    ]);
 
-        const bizHash = await bcrypt.hash("business123", 12);
-        await User.create({
-            email: "demo@business.in",
-            password_hash: bizHash,
-            name: "Demo Business User",
-            role: "business",
-            business_name: "Demo Enterprises",
-            gstin: "27AADCB2230M1Z3",
-        });
-        console.log("  ✓ Created admin (admin@gstguru.in / admin123) and demo user (demo@business.in / business123)");
 
-        // ── Seed GST rates ───────────────────────────────────
-        console.log("Seeding GST rates...");
-        const categoryBreakdown = {};
-        let count = 0;
+    // --- SEED USER 3 (Manufacturer) ---
+    await Party.bulkCreate([
+        { user_id: user3.id, name: "Raw Material Supplier", type: "vendor", gstin: "24CCCCC2222C3Z7" },
+        { user_id: user3.id, name: "Distributor Network Private Ltd", type: "customer", gstin: "27DDDDD3333D4Z8" }
+    ]);
 
-        for (const item of GST_ITEMS) {
-            await GstRate.create({
-                hsn_sac_code: item.hsn,
-                description: `${item.name} — ${item.desc}`,
-                rate_percent: item.rate,
-                cess_percent: item.cess || 0,
-                effective_from: "2024-01-01",
-                effective_to: null,
-                category_id: categoryMap[item.category] || null,
-                is_rcm: item.is_rcm || false,
-                price_slabs_json: item.price_slabs || null,
-                applicability_json: item.applicability || null,
-            });
-            count++;
-
-            // Track breakdown
-            categoryBreakdown[item.category] = (categoryBreakdown[item.category] || 0) + 1;
+    // B2B Sales
+    await Invoice.bulkCreate([
+        {
+            user_id: user3.id, invoice_number: "MFG-2026-001", invoice_type: "sale", buyer_name: "Distributor Network Private Ltd", buyer_gstin: "27DDDDD3333D4Z8",
+            invoice_date: "2026-03-10", subtotal: 500000, cgst: 45000, sgst: 45000, igst: 0, cess: 0, total: 590000,
+            payment_status: "unpaid", items_json: [
+                { description: "Finished Goods A", quantity: 100, price: 2000, gst_rate: 18 },
+                { description: "Finished Goods B", quantity: 50, price: 6000, gst_rate: 18 }
+            ]
         }
+    ]);
 
-        // ── Summary ──────────────────────────────────────────
-        console.log(`\n${"═".repeat(50)}`);
-        console.log(`  DATABASE SEEDED SUCCESSFULLY`);
-        console.log(`${"═".repeat(50)}`);
-        console.log(`  Total GST items: ${count}`);
-        console.log(`  Main categories: ${CATEGORIES.length}`);
-        console.log(`  Sub-categories:  ${subCatCount}`);
-        console.log(`\n  Breakdown by category:`);
-        for (const [cat, num] of Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1])) {
-            console.log(`    ${cat.padEnd(28)} ${num} items`);
+    await Expense.bulkCreate([
+        { user_id: user3.id, vendor_name: "Raw Material Supplier", vendor_gstin: "24CCCCC2222C3Z7", category: "Raw Materials", amount: 200000, gst_paid: 36000, date: "2026-03-05", eligible_itc: true },
+        { user_id: user3.id, vendor_name: "Logistics Co", category: "Transport", amount: 15000, gst_paid: 750, date: "2026-03-11", eligible_itc: true }
+    ]);
+
+    await GstReturn.create({
+        user_id: user3.id, return_type: "GSTR-1", period_month: 2, period_year: 2026, status: "filed",
+        data: { "b2b_sales": 850000 }
+    });
+
+    // --- SEED USER 4 (Restaurant) ---
+    await Invoice.bulkCreate([
+        {
+            user_id: user4.id, invoice_number: "REST-001", invoice_type: "sale", buyer_name: "Dine-in Cust 1",
+            invoice_date: "2026-03-12", subtotal: 1500, cgst: 37.5, sgst: 37.5, igst: 0, cess: 0, total: 1575,
+            payment_status: "paid", items_json: [{ description: "Food & Beverage", quantity: 1, price: 1500, gst_rate: 5 }]
         }
-        console.log(`${"═".repeat(50)}\n`);
+    ]);
 
-        process.exit(0);
-    } catch (err) {
-        console.error("Seed error:", err);
-        process.exit(1);
-    }
+    await Expense.bulkCreate([
+        { user_id: user4.id, vendor_name: "Vegetable Vendor", category: "Inventory", amount: 5000, gst_paid: 0, date: "2026-03-02", eligible_itc: false }
+    ]);
+
+
+    console.log("Seeding complete! You can log in with:");
+    console.log("1. retail@example.com (password123)");
+    console.log("2. freelance@example.com (password123)");
+    console.log("3. manufacturer@example.com (password123)");
+    console.log("4. restaurant@example.com (password123)");
+    process.exit();
 }
 
-seed();
+seed().catch(err => {
+    console.error("Seed error:", err);
+    process.exit(1);
+});

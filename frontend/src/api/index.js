@@ -61,6 +61,7 @@ export const calculateAPI = {
     bundle: (data) => api.post("/calculate/bundle", data),
     batch: (data) => api.post("/calculate/batch", data),
     getStates: () => api.get("/calculate/states"),
+    pricing: (data) => api.post("/calculate/pricing", data),
 };
 
 // ── Invoice (legacy HTML) ─────────────────────────────────
@@ -83,6 +84,7 @@ export const filingsAPI = {
     list: (params) => api.get("/filings", { params }),
     upcoming: () => api.get("/filings/upcoming"),
     calendar: (params) => api.get("/filings/calendar", { params }),
+    smartReminders: () => api.get("/filings/smart-reminders"),
     create: (data) => api.post("/filings", data),
     update: (id, data) => api.put(`/filings/${id}`, data),
     delete: (id) => api.delete(`/filings/${id}`),
@@ -169,6 +171,39 @@ export const hsnBrowserAPI = {
 export const itcAPI = {
     calculate: (purchases) => api.post("/itc/calculate", { purchases }),
     aiAdvice: (scenario) => api.post("/itc/ai-advice", { scenario }),
+};
+
+// ── Business Insights ─────────────────────────────────────
+export const insightsAPI = {
+    overpayCheck: () => api.get("/insights/overpay-check"),
+    itcReconciliation: (params) => api.get("/insights/itc-reconciliation", { params }),
+    rateImpact: (data) => api.post("/insights/rate-impact", data),
+    annualSummary: (params) => api.get("/insights/annual-summary", { params }),
+};
+
+// ── Expenses ──────────────────────────────────────────────
+export const expensesAPI = {
+    list: () => api.get("/expenses"),
+    create: (data) => api.post("/expenses", data),
+    update: (id, data) => api.put(`/expenses/${id}`, data),
+    delete: (id) => api.delete(`/expenses/${id}`),
+    summary: () => api.get("/expenses/summary"),
+};
+
+// ── Customers / Vendors (Parties) ─────────────────────────
+export const partiesAPI = {
+    list: (type) => api.get("/parties", { params: { type } }),
+    create: (data) => api.post("/parties", data),
+    update: (id, data) => api.put(`/parties/${id}`, data),
+    delete: (id) => api.delete(`/parties/${id}`),
+};
+
+// ── GST Returns ───────────────────────────────────────────
+export const returnsAPI = {
+    history: () => api.get("/gst-returns"),
+    prepareGstr1: (month, year) => api.get("/gst-returns/prepare/gstr1", { params: { month, year } }),
+    prepareGstr3b: (month, year) => api.get("/gst-returns/prepare/gstr3b", { params: { month, year } }),
+    saveDraft: (data) => api.post("/gst-returns", data),
 };
 
 export default api;

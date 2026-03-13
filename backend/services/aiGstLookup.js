@@ -107,4 +107,4 @@ async function lookupGST(query) {
     }
 }
 
-module.exports = { lookupGST };
+module.exports = { lookupGST, getApiKey };

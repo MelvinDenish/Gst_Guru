@@ -228,4 +228,105 @@ router.delete("/:id", async (req, res) => {
     }
 });
 
+// ── Generate invoice HTML ────────────────────────────────
+router.get("/:id/pdf", async (req, res) => {
+    try {
+        const invoice = await Invoice.findOne({ where: { id: req.params.id, user_id: req.user.id } });
+        if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+        let html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Invoice ${invoice.invoice_number}</title>
+            <style>
+                body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; }
+                .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #0d9488; padding-bottom: 20px; }
+                .title { font-size: 28px; color: #0d9488; font-weight: bold; }
+                .details { display: flex; justify-content: space-between; margin-bottom: 40px; }
+                .box { border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; width: 45%; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
+                th { background-color: #f8fafc; color: #0f172a; }
+                .totals { width: 40%; margin-left: auto; }
+                .totals-row { display: flex; justify-content: space-between; padding: 8px 0; }
+                .grand-total { font-weight: bold; font-size: 1.2em; border-top: 2px solid #e2e8f0; padding-top: 10px; margin-top: 10px; color: #0d9488; }
+                @media print { body { padding: 0; } .print-btn { display: none; } }
+            </style>
+        </head>
+        <body>
+            <button class="print-btn" onclick="window.print()" style="padding: 10px 20px; background: #0d9488; color: white; border: none; border-radius: 5px; cursor: pointer; float: right;">Print / Save PDF</button>
+            <div class="header">
+                <div>
+                    <div class="title">INVOICE</div>
+                    <div># ${invoice.invoice_number}</div>
+                    <div>Date: ${invoice.invoice_date}</div>
+                </div>
+                <div style="text-align: right;">
+                    <strong>${invoice.seller_name}</strong><br>
+                    ${invoice.seller_gstin ? 'GSTIN: ' + invoice.seller_gstin : ''}
+                </div>
+            </div>
+            
+            <div class="details">
+                <div class="box">
+                    <h3>Billed To:</h3>
+                    <strong>${invoice.buyer_name}</strong><br>
+                    ${invoice.buyer_address ? invoice.buyer_address + '<br>' : ''}
+                    ${invoice.buyer_gstin ? 'GSTIN: ' + invoice.buyer_gstin : ''}
+                </div>
+                <div class="box">
+                    <h3>Payment Details:</h3>
+                    Status: <strong style="text-transform: uppercase;">${invoice.payment_status}</strong><br>
+                    Due Date: ${invoice.due_date || 'N/A'}<br>
+                    Place of Supply: ${invoice.place_of_supply || 'N/A'}
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Item Description</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>GST %</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+                
+        html += invoice.items_json.map(item => '<tr>' + 
+            '<td>' + (item.name || item.description || '') + '</td>' + 
+            '<td>' + item.quantity + '</td>' + 
+            '<td>₹' + item.price + '</td>' + 
+            '<td>' + item.gst_rate + '%</td>' + 
+            '<td>₹' + (item.quantity * item.price).toFixed(2) + '</td>' + 
+        '</tr>').join('');
+        
+        html += `
+                </tbody>
+            </table>
+
+            <div class="totals">
+                <div class="totals-row"><span>Subtotal:</span> <span>₹${invoice.subtotal}</span></div>
+                ${invoice.cgst > 0 ? '<div class="totals-row"><span>CGST:</span> <span>₹' + invoice.cgst + '</span></div>' : ''}
+                ${invoice.sgst > 0 ? '<div class="totals-row"><span>SGST:</span> <span>₹' + invoice.sgst + '</span></div>' : ''}
+                ${invoice.igst > 0 ? '<div class="totals-row"><span>IGST:</span> <span>₹' + invoice.igst + '</span></div>' : ''}
+                ${invoice.cess > 0 ? '<div class="totals-row"><span>CESS:</span> <span>₹' + invoice.cess + '</span></div>' : ''}
+                <div class="totals-row grand-total"><span>Grand Total:</span> <span>₹${invoice.total}</span></div>
+            </div>
+            
+            ${invoice.notes ? '<div style="margin-top: 40px; color: #64748b;"><strong>Notes:</strong><br>' + invoice.notes + '</div>' : ''}
+        </body>
+        </html>
+        `;
+
+        res.send(html);
+    } catch (err) {
+        console.error("Invoice PDF error:", err);
+        res.status(500).json({ error: "Failed to generate invoice document" });
+    }
+});
+
 module.exports = router;
+

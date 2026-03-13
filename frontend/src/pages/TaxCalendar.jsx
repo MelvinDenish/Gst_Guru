@@ -7,7 +7,9 @@ export default function TaxCalendar() {
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
     const [viewMonths, setViewMonths] = useState(3);
-    const [filter, setFilter] = useState("all"); // all, upcoming, overdue, done
+    const [filter, setFilter] = useState("all");
+    const [reminders, setReminders] = useState(null);
+    const [remindersLoading, setRemindersLoading] = useState(false);
 
     const loadCalendar = async () => {
         setLoading(true);
@@ -21,7 +23,16 @@ export default function TaxCalendar() {
         }
     };
 
-    useEffect(() => { loadCalendar(); }, [viewMonths]);
+    useEffect(() => { loadCalendar(); loadReminders(); }, [viewMonths]);
+
+    const loadReminders = async () => {
+        setRemindersLoading(true);
+        try {
+            const { data } = await filingsAPI.smartReminders();
+            setReminders(data);
+        } catch { /* silent — not critical */ }
+        finally { setRemindersLoading(false); }
+    };
 
     const filteredEvents = events.filter(e => {
         if (filter === "all") return true;
@@ -85,6 +96,43 @@ export default function TaxCalendar() {
                 </div>
             </div>
 
+            {/* Smart Reminders */}
+            {reminders && reminders.reminders.length > 0 && (
+                <div className="smart-reminders-section">
+                    <h2 className="reminders-title">⚡ Smart Reminders</h2>
+                    {reminders.summary.total_penalty_at_risk > 0 && (
+                        <div className="penalty-at-risk glass-card">
+                            <span className="penalty-icon">💸</span>
+                            <div>
+                                <strong>₹{reminders.summary.total_penalty_at_risk.toLocaleString("en-IN")} in penalties at risk</strong>
+                                <p>{reminders.summary.overdue} overdue · {reminders.summary.critical} critical</p>
+                            </div>
+                        </div>
+                    )}
+                    <div className="reminders-grid">
+                        {reminders.reminders.map(r => (
+                            <div key={r.id} className={`reminder-card glass-card urgency-${r.urgency}`}>
+                                <div className="reminder-header">
+                                    <span className="code-badge">{r.return_type}</span>
+                                    <span className={`urgency-badge urgency-${r.urgency}`}>
+                                        {r.urgency === "overdue" ? "⛔ OVERDUE" :
+                                            r.urgency === "critical" ? "🔴 CRITICAL" :
+                                                r.urgency === "urgent" ? "🟠 URGENT" :
+                                                    r.urgency === "warning" ? "🟡 WARNING" : "🟢 OK"}
+                                    </span>
+                                </div>
+                                <p className="reminder-period">{r.period} · Due: {r.due_date}</p>
+                                <p className="reminder-action">{r.action_message}</p>
+                                <div className="reminder-penalty">
+                                    <span>Penalty: ₹{r.penalty_estimate.total.toLocaleString("en-IN")}</span>
+                                    <span className="penalty-detail">₹{r.penalty_estimate.late_fee_per_day}/day late fee</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Stats */}
             <div className="dashboard-stats">
                 <div className="stat-card glass-card">
@@ -115,9 +163,9 @@ export default function TaxCalendar() {
                     <button key={f} className={`tab-btn ${filter === f ? "active" : ""}`}
                         onClick={() => setFilter(f)}>
                         {f === "all" ? `All (${stats.total})` :
-                         f === "upcoming" ? `Upcoming (${stats.upcoming})` :
-                         f === "overdue" ? `Overdue (${stats.overdue})` :
-                         `Filed (${stats.done})`}
+                            f === "upcoming" ? `Upcoming (${stats.upcoming})` :
+                                f === "overdue" ? `Overdue (${stats.overdue})` :
+                                    `Filed (${stats.done})`}
                     </button>
                 ))}
             </div>

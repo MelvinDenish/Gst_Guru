@@ -211,6 +211,7 @@ export default function InvoiceTracker() {
                                             {inv.payment_status === "paid" && (
                                                 <button className="btn-icon" title="Mark Unpaid" onClick={() => toggleStatus(inv, "unpaid")}>↩️</button>
                                             )}
+                                            <a href={`http://localhost:5000/api/invoices/${inv.id}/pdf`} target="_blank" rel="noreferrer" className="btn-icon" title="Download PDF" style={{textDecoration: 'none'}}>📥</a>
                                             <button className="btn-icon delete" title="Delete" onClick={() => handleDelete(inv.id)}>🗑️</button>
                                         </td>
                                     </tr>

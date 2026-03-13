@@ -18,6 +18,11 @@ import ComplianceReports from "./pages/ComplianceReports";
 import HsnBrowser from "./pages/HsnBrowser";
 import ItcCalculator from "./pages/ItcCalculator";
 import TaxCalendar from "./pages/TaxCalendar";
+import BusinessInsights from "./pages/BusinessInsights";
+import PricingTool from "./pages/PricingTool";
+import GstReturns from "./pages/GstReturns";
+import ExpenseTracker from "./pages/ExpenseTracker";
+import CustomerVendor from "./pages/CustomerVendor";
 import "./index.css";
 
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -40,6 +45,7 @@ function AppRoutes() {
           <Route path="/bundle" element={<BundleCalculator />} />
           <Route path="/gst-lookup" element={<GstLookup />} />
           <Route path="/hsn-browser" element={<HsnBrowser />} />
+          <Route path="/pricing" element={<PricingTool />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
@@ -49,6 +55,10 @@ function AppRoutes() {
           <Route path="/itc" element={<ProtectedRoute><ItcCalculator /></ProtectedRoute>} />
           <Route path="/tax-calendar" element={<ProtectedRoute><TaxCalendar /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+          <Route path="/insights" element={<ProtectedRoute><BusinessInsights /></ProtectedRoute>} />
+          <Route path="/returns" element={<ProtectedRoute><GstReturns /></ProtectedRoute>} />
+          <Route path="/expenses" element={<ProtectedRoute><ExpenseTracker /></ProtectedRoute>} />
+          <Route path="/parties" element={<ProtectedRoute><CustomerVendor /></ProtectedRoute>} />
           <Route path="/admin/rates" element={<ProtectedRoute adminOnly><AdminRates /></ProtectedRoute>} />
           <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminCategories /></ProtectedRoute>} />
         </Routes>

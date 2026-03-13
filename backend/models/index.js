@@ -10,6 +10,9 @@ const SyncLog = require("./SyncLog");
 const Invoice = require("./Invoice");
 const FilingRecord = require("./FilingRecord");
 const ComplianceReport = require("./ComplianceReport");
+const Expense = require("./Expense");
+const Party = require("./Party");
+const GstReturn = require("./GstReturn");
 
 // ── Existing Associations ─────────────────────────────────
 GstRate.belongsTo(Category, { foreignKey: "category_id" });
@@ -41,6 +44,15 @@ User.hasMany(FilingRecord, { foreignKey: "user_id" });
 ComplianceReport.belongsTo(User, { foreignKey: "user_id" });
 User.hasMany(ComplianceReport, { foreignKey: "user_id" });
 
+Expense.belongsTo(User, { foreignKey: "user_id" });
+User.hasMany(Expense, { foreignKey: "user_id" });
+
+Party.belongsTo(User, { foreignKey: "user_id" });
+User.hasMany(Party, { foreignKey: "user_id" });
+
+GstReturn.belongsTo(User, { foreignKey: "user_id" });
+User.hasMany(GstReturn, { foreignKey: "user_id" });
+
 module.exports = {
     sequelize,
     User,
@@ -54,4 +66,7 @@ module.exports = {
     Invoice,
     FilingRecord,
     ComplianceReport,
+    Expense,
+    Party,
+    GstReturn,
 };
